@@ -196,3 +196,15 @@ Dua tes baru gagal sebelum perbaikan dan lulus sesudahnya. Tes integrasi
 menjaga alur approve -> paste URL baru -> placeholder + tombol izin tampil
 lagi. Baseline JS terbaru: **154/154 lulus**. Ini pembatasan izin aplikasi,
 bukan pembatasan host/redirect/DNS; webview network dan M3/CSP masih terbuka.
+
+## Update variasi URL browser
+
+Deteksi jaringan kini konservatif terhadap semua awalan HTTP(S), termasuk
+bentuk tanpa slash lengkap, serta network-path dengan backslash/mixed slash.
+Sebelumnya regex mensyaratkan // sehingga `https:host/path` tidak diklasifikasi
+remote. Regression test mereproduksi kegagalan sebelum perbaikan. Tes juga
+mencakup karakter kontrol dan entity HTML yang didekode parser inert.
+
+Baseline JS: **156/156 lulus**. URL asli tetap disimpan dalam atribut inert/model;
+perubahan ini tidak memperluas izin. Ini bukan validasi SSRF/DNS atau bukti
+network webview: native downloader dan CSP ketat tetap pekerjaan M3 terpisah.

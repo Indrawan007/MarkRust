@@ -170,3 +170,9 @@ uji clipboard OS/network tetap belum dilakukan. Ini belum menutup M3.
 Izin Muat gambar dibatasi pada daftar URL saat klik, bukan seluruh URL masa
 depan pada dokumen. Helper reveal memeriksa izin sendiri. Tes integrasi paste
 sesudah consent ditambahkan; 154 tes JS lulus. Uji network/native tetap pending.
+
+### M3 parsial — variasi URL jaringan
+
+Deteksi sebelum render menutup bentuk HTTP(S) tanpa slash lengkap serta
+backslash/mixed slash, termasuk yang disamarkan dengan entity HTML. 156 tes JS
+lulus; verifikasi jaringan webview dan native downloader tetap belum selesai.

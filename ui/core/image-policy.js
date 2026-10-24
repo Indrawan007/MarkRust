@@ -42,7 +42,10 @@ export function isRemoteImageUrl(url) {
   var cleaned = String(url == null ? '' : url)
     .replace(/[\u0000-\u0020\u007f]/g, '')
     .trim();
-  return /^(?:https?:)?\/\//i.test(cleaned);
+  // WHATWG special URLs accept missing slashes and normalize backslashes.
+  // Classify conservatively before a browser or Quill can normalize them.
+  cleaned = cleaned.replace(/\\/g, '/');
+  return /^https?:/i.test(cleaned) || cleaned.startsWith('//');
 }
 
 export function isPlaceholderUrl(url) {

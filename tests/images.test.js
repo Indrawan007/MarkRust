@@ -321,3 +321,37 @@ test('reveal helper never loads an image without explicit URL consent', () => {
   assert.equal(q.root.querySelector('img').getAttribute('src'), REMOTE);
   resetImagePolicy();
 });
+
+test('browser-normalized HTTP URL variants are blocked before src assignment', () => {
+  resetImagePolicy();
+  const urls = [
+    'https:tracker.example/pixel.png',
+    'http:/tracker.example/pixel.png',
+    'https:\\tracker.example\\pixel.png',
+    '\\\\tracker.example\\pixel.png',
+    '/\\tracker.example/pixel.png',
+    'h\tttps://tracker.example/pixel.png'
+  ];
+  const q = createQuill();
+  for (const url of urls) {
+    assert.equal(isRemoteImageUrl(url), true, 'must classify as network-capable: ' + JSON.stringify(url));
+    const sources = recordImageSources(() => q.insertEmbed(0, 'image', url, 'user'));
+    assert.ok(sources.every((src) => src === IMAGE_PLACEHOLDER));
+  }
+});
+
+test('HTML entities and backslash URLs remain inert after normalization', () => {
+  resetImagePolicy();
+  const cases = [
+    ['<img src="https&#58;tracker.example/pixel.png">', 'https:tracker.example/pixel.png'],
+    ['<img src="https&#58;&#92;&#92;tracker.example/pixel.png">', 'https:\\\\tracker.example/pixel.png'],
+    ['<img src="&#92;&#92;tracker.example/pixel.png">', '\\\\tracker.example/pixel.png']
+  ];
+  for (const [input, original] of cases) {
+    const html = normalizeForQuill(input, DOMParser);
+    const parsed = new DOMParser().parseFromString(html, 'text/html');
+    const img = parsed.querySelector('img');
+    assert.equal(img.getAttribute('src'), IMAGE_PLACEHOLDER);
+    assert.equal(img.getAttribute('data-mr-src'), original);
+  }
+});
