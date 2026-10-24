@@ -55,3 +55,18 @@ Gunakan dokumen sintetis dan folder uji, bukan berkas kerja satu-satunya.
 - Temuan baru masuk laporan handoff dan diikuti tes regresi bila bisa diotomasi.
 - Installer, signing, upgrade/uninstall diuji terpisah pada M4; menjalankan
   build development tidak membuktikan installer siap rilis.
+
+## Tambahan M3 native downloader (belum diuji manual)
+
+- P04: URL HTTPS publik PNG/JPEG/GIF/WebP -> data PNG lokal, URL asli tetap
+  pada Markdown; dokumen lain kembali diblokir.
+- P05: localhost, RFC1918, link-local metadata, IPv4 reserved, IPv6-only,
+  HTTP, non-443, URL dengan kredensial -> ditolak tanpa menampilkan sumber remote.
+- P06: redirect publik -> privat maupun publik -> publik -> ditolak (tidak diikuti).
+- P07: Content-Type salah, SVG, berkas rusak, >5 MiB streamed, dimensi >4096,
+  output/cache terlalu besar -> error terlihat, editor tetap dapat digunakan.
+- P08: network inspector desktop: hanya jalur native atas izin yang melakukan
+  unduhan; src DOM hasil unduh data PNG. CSP menolak fetch gambar HTTP(S)
+  langsung. Browser fallback sengaja memiliki kebijakan berbeda.
+- P09: ganti dokumen ketika unduh sedang berjalan -> hasil lama tidak masuk
+  dokumen baru. Uji DNS lambat; timeout resolver OS masih merupakan batas terbuka.

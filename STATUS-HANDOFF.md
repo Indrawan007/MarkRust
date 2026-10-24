@@ -240,3 +240,7 @@ bukti end-to-end SSRF/DNS/TLS/network pada tiga webview. Checklist P01–P03,
 pengujian HTTP hostile endpoints, timeout DNS dan audit routing lingkungan
 (private routing atas alamat publik) masih terbuka. M3 belum dinyatakan tuntas.
 Cargo.lock harus diselaraskan lagi dengan reqwest/base64/image sebelum --locked.
+
+Verifikasi downloader native: commit `41b0e37`, CI `40087345454` **success**:
+Node 159 tes serta build/test Rust di Linux, Windows, macOS lulus. Bundel rilis
+skipped. Ini tidak mengubah status BELUM DIUJI pada checklist webview/network.
