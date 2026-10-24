@@ -529,3 +529,18 @@ Batas terbuka:
 - **198/198 tes frontend lulus**, termasuk raw edit vs DOM lama, tombol/handler
   mode visual, unduhan tertunda dan penghentian URL berikutnya. Tidak ada
   perubahan Rust/build/install/push; rendering/fokus WebKitGTK belum diuji.
+
+## Tahap pemantapan 4 — koordinasi restore dengan operasi harian
+
+- Restore tidak dimulai saat dirty, open/new/save/close atau dialog aplikasi
+  aktif. Selama read/picker/konfirmasi restore, Buka/Baru/Simpan ditandai busy;
+  aksi penggantian dokumen, pindah mode, gambar dan close ditahan.
+- Ketikan editor tetap diperbolehkan; generation/revision guard membatalkan
+  penerapan snapshot setelah ketikan baru, kini dengan feedback yang jelas.
+- Seluruh alur restore termasuk konfirmasi dilindungi catch/finally, sehingga
+  dialog yang gagal tidak menghasilkan rejected promise startup tanpa handler;
+  sumber arsip tidak dihapus dan kontrol/lock dilepas untuk retry.
+- **201/201 tes frontend lulus**: operasi/close saat restore, error konfirmasi
+  + retry, arsip tetap, dan ketikan saat konfirmasi mempertahankan isi/dirty.
+- Tidak build/install/push. Native recovery Rust tetap belum dikompilasi/diuji;
+  arsip cleanup/quota dan isolasi browser/legacy satu-key tetap belum selesai.

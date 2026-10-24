@@ -125,7 +125,7 @@ function boot() {
   const imageError = document.getElementById('image-error');
 
   function imageHandler() {
-    if (currentMode !== 'wysiwyg' || closeInProgress || hasOpenAppDialog()) return;
+    if (currentMode !== 'wysiwyg' || closeInProgress || restoreInProgress || hasOpenAppDialog()) return;
     const range = quill.getSelection(true);
     pendingImageRange = range ? { index: range.index, length: range.length } : null;
     pendingImageStamp = documentStamp();
@@ -287,6 +287,7 @@ function boot() {
   let openInProgress = false;
   let newInProgress = false;
   let closeInProgress = false;
+  let restoreInProgress = false;
 
   function getCanonicalMarkdown() {
     return currentMode === 'markdown' ? textarea.value : quillToMarkdown();
@@ -503,7 +504,7 @@ function boot() {
   });
 
   function setMode(mode) {
-    if (!['markdown', 'wysiwyg'].includes(mode) || hasOpenAppDialog()) return false;
+    if (!['markdown', 'wysiwyg'].includes(mode) || restoreInProgress || hasOpenAppDialog()) return false;
     if (mode === currentMode) return true;
 
     if (mode === 'markdown') {
@@ -613,7 +614,7 @@ function boot() {
   }
 
   async function newDocument() {
-    if (closeInProgress || newInProgress || openInProgress || hasOpenAppDialog()) return false;
+    if (restoreInProgress || closeInProgress || newInProgress || openInProgress || hasOpenAppDialog()) return false;
     newInProgress = true;
     fileBusy('new', true);
     const stamp = documentStamp();
@@ -651,7 +652,7 @@ function boot() {
   }
 
   async function openDocument() {
-    if (closeInProgress || openInProgress || newInProgress || hasOpenAppDialog()) return false;
+    if (restoreInProgress || closeInProgress || openInProgress || newInProgress || hasOpenAppDialog()) return false;
     openInProgress = true;
     fileBusy('open', true);
     const stamp = documentStamp();
@@ -689,7 +690,7 @@ function boot() {
 
   async function saveDocument(saveAs) {
     // Never overlap writes to the same temporary file or race save dialogs.
-    if (saveInProgress || newInProgress || openInProgress || hasOpenAppDialog()) return false;
+    if (restoreInProgress || saveInProgress || newInProgress || openInProgress || hasOpenAppDialog()) return false;
     saveInProgress = true;
     fileBusy('save', true);
     fileFeedback('Menyimpan…');
@@ -778,7 +779,7 @@ function boot() {
   // Drag & drop berkas .md (berjalan di webview maupun browser).
   document.addEventListener('dragover', function (e) { e.preventDefault(); });
   async function openDroppedFile(file) {
-    if (closeInProgress || hasOpenAppDialog() || newInProgress || openInProgress) return false;
+    if (restoreInProgress || closeInProgress || hasOpenAppDialog() || newInProgress || openInProgress) return false;
     openInProgress = true;
     fileBusy('open', true);
     const stamp = documentStamp();
@@ -822,7 +823,7 @@ function boot() {
     const files = e.dataTransfer?.files;
     if (!files?.length) return;
     e.preventDefault();
-    if (closeInProgress || hasOpenAppDialog() || newInProgress || openInProgress) return;
+    if (restoreInProgress || closeInProgress || hasOpenAppDialog() || newInProgress || openInProgress) return;
     if (files.length !== 1) {
       fileFeedback('Jatuhkan satu berkas saja. Dokumen aktif tetap dipertahankan.', 'warning');
       return;
@@ -840,7 +841,7 @@ function boot() {
       const win = tauri.window.getCurrentWindow();
       if (win && typeof win.onCloseRequested === 'function') {
         win.onCloseRequested(async function (event) {
-          if (closeInProgress || saveInProgress || openInProgress || newInProgress || hasOpenAppDialog()) {
+          if (restoreInProgress || closeInProgress || saveInProgress || openInProgress || newInProgress || hasOpenAppDialog()) {
             event.preventDefault();
             return;
           }
@@ -877,13 +878,23 @@ function boot() {
 
   /* Tawarkan pemulihan draf dari sesi sebelumnya. Dipanggil setelah konten
      awal dimuat, sehingga pengguna punya pembanding sebelum memutuskan. */
-  let restoreInProgress = false;
   async function restoreDraftIfAny() {
-    if (closeInProgress || restoreInProgress) return false;
+    if (closeInProgress || restoreInProgress || openInProgress || newInProgress || saveInProgress || hasOpenAppDialog() || dirty) return false;
     restoreInProgress = true;
-    try { return await performRestoreDraft(); }
-    finally { restoreInProgress = false; }
+    for (const action of ['new', 'open', 'save']) fileBusy(action, true);
+    try {
+      return await performRestoreDraft();
+    } catch (err) {
+      draftError.hidden = false;
+      draftError.title = String(err?.message || err);
+      fileFeedback('Pemulihan gagal. Berkas recovery tetap disimpan; coba lagi nanti.', 'error');
+      return false;
+    } finally {
+      restoreInProgress = false;
+      for (const action of ['new', 'open', 'save']) fileBusy(action, false);
+    }
   }
+
   async function performRestoreDraft() {
     if (dirty) return false; // Recovery must never overwrite current unsaved work.
     const generation = documentGeneration;
@@ -913,7 +924,10 @@ function boot() {
     }
     if (!draft || generation !== documentGeneration || revision !== editRevision) return false;
     const ok = await confirmRestore(tauri, restoreMessage(draft.savedAt));
-    if (generation !== documentGeneration || revision !== editRevision) return false;
+    if (generation !== documentGeneration || revision !== editRevision) {
+      fileFeedback('Pemulihan dibatalkan karena ada perubahan baru. Tulisan aktif dan arsip tetap dipertahankan.', 'warning');
+      return false;
+    }
     if (!ok) {
       fileFeedback('Pemulihan ditunda. Cadangan lama tetap disimpan.');
       return false;
@@ -1017,7 +1031,7 @@ function boot() {
     }
   }
   async function loadRemoteImages() {
-    if (currentMode !== 'wysiwyg' || closeInProgress || hasOpenAppDialog()) return 0;
+    if (currentMode !== 'wysiwyg' || closeInProgress || restoreInProgress || hasOpenAppDialog()) return 0;
     const urls = Array.from(quill.root.querySelectorAll('img[data-mr-src]'))
       .map((node) => node.getAttribute('data-mr-src')).filter((url) => !isRemoteImageAllowed(url));
     return loadImageUrls(urls);

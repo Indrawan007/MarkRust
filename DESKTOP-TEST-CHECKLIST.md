@@ -142,3 +142,8 @@ ini belum dijalankan di webview/OS nyata.
   stale tidak diterapkan dan URL sisa tidak diunduh. Request yang sudah terkirim
   dapat tetap selesai di backend. Retry pada WYSIWYG harus memungkinkan.
   Belum diuji native; tes mock bukan bukti pembatalan jaringan.
+
+- U13: selama picker/konfirmasi restore, Buka/Baru/Simpan/mode/gambar/close tidak
+  membuka operasi lain. Ketik saat menunggu: konfirmasi restore tidak boleh
+  menimpa tulisan baru dan memberi feedback stale. Gagal dialog/read lalu retry:
+  lock/busy lepas, sumber recovery tetap ada. Masih belum diuji native.

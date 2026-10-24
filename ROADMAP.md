@@ -159,3 +159,8 @@ Putaran lintas mode/gambar: sembunyikan kontrol format visual di Markdown,
 cegah download dari DOM Quill stale, beri status raw yang sesuai, dan abaikan
 hasil batch stale setelah edit/pergantian mode. 198 tes frontend lulus.
 Request yang sudah berjalan bukan dibatalkan; native/WebKitGTK belum diverifikasi.
+
+Putaran koordinasi recovery: busy controls dan pengunci antar-operasi selama
+restore, catch error konfirmasi, cleanup untuk retry, dan feedback saat restore
+stale akibat ketikan. 201 tes frontend lulus. Tidak mengklaim native selesai;
+cleanup arsip/quota dan isolasi fallback browser tetap pekerjaan terbuka.

@@ -37,6 +37,7 @@ let pendingAsk = null;
 let recoveryContents = null;
 let archivedRecoveries = [];
 let failCandidateRead = false;
+let failAsk = false;
 let failRecovery = false;
 const DISK_DOC = '# Dokumen Dari Disk\n\nIsi dari berkas.\n';
 window.__TAURI__ = {
@@ -70,7 +71,7 @@ window.__TAURI__ = {
   dialog: {
     open: async () => '/home/u/catatan.md',
     save: async () => '/home/u/catatan-baru.md',
-    ask: async (msg) => { asks.push(msg); if (pendingAsk) await pendingAsk; return nextAskResult; },
+    ask: async (msg) => { asks.push(msg); if (failAsk) throw new Error('dialog unavailable'); if (pendingAsk) await pendingAsk; return nextAskResult; },
     message: async () => {}
   },
   event: { listen: async () => () => {} },
@@ -1168,4 +1169,66 @@ test('pindah mode dan edit saat unduhan tertunda membuang hasil dan menghentikan
     api.setMode('wysiwyg');
     assert.equal(api.quill.root.querySelector('img'), null);
   } finally { release(); pendingDownload = null; await loading; await api.flushDraft(); }
+});
+
+test('restore menahan operasi lain dan close selama konfirmasi tanpa menghapus arsip', async () => {
+  await api.newDocument();
+  const raw = JSON.stringify({ version: 1, markdown: 'Arsip\n', savedAt: 1 });
+  archivedRecoveries = [{ id: 'session-locked', raw, savedAt: 1 }];
+  let release;
+  pendingAsk = new Promise((resolve) => { release = resolve; });
+  nextAskResult = false;
+  const restoring = api.restoreDraftIfAny();
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(await api.restoreDraftIfAny(), false);
+    assert.equal(await api.newDocument(), false);
+    assert.equal(await api.openDocument(), false);
+    assert.equal(await api.saveDocument(false), false);
+    assert.equal(api.setMode('markdown'), false);
+    let prevented = false;
+    await closeHandlers.at(-1)({ preventDefault() { prevented = true; } });
+    assert.equal(prevented, true);
+    assert.ok(['new', 'open', 'save'].every((action) => window.document.getElementById('btn-' + action).disabled));
+    release();
+    assert.equal(await restoring, false);
+    assert.equal(archivedRecoveries[0].raw, raw);
+    assert.ok(['new', 'open', 'save'].every((action) => !window.document.getElementById('btn-' + action).disabled));
+  } finally { release(); await restoring; pendingAsk = null; archivedRecoveries = []; nextAskResult = true; }
+});
+
+test('gagal dialog restore ditangani tanpa mengubah isi dan retry tetap bisa', async () => {
+  await api.newDocument();
+  const before = api.getMarkdown();
+  const raw = JSON.stringify({ version: 1, markdown: 'Retry arsip\n', savedAt: 1 });
+  archivedRecoveries = [{ id: 'session-retry', raw, savedAt: 1 }];
+  failAsk = true;
+  try {
+    assert.equal(await api.restoreDraftIfAny(), false);
+    assert.equal(api.getMarkdown(), before);
+    assert.equal(archivedRecoveries[0].raw, raw);
+    assert.match(window.document.getElementById('file-feedback').textContent, /Pemulihan gagal/);
+    assert.equal(window.document.getElementById('btn-open').disabled, false);
+    failAsk = false;
+    assert.equal(await api.restoreDraftIfAny(), true);
+    assert.match(api.getMarkdown(), /Retry arsip/);
+  } finally { failAsk = false; archivedRecoveries = []; await api.flushDraft(); }
+});
+
+test('ketikan saat konfirmasi restore membuat hasil stale tanpa menimpa tulisan', async () => {
+  await api.newDocument();
+  archivedRecoveries = [{ id: 'session-stale-confirm', raw: JSON.stringify({ version: 1, markdown: 'Jangan timpa\n', savedAt: 1 }) }];
+  let release;
+  pendingAsk = new Promise((resolve) => { release = resolve; });
+  nextAskResult = true;
+  const restoring = api.restoreDraftIfAny();
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    api.quill.insertText(0, 'Ketikan saat menunggu', 'user');
+    release();
+    assert.equal(await restoring, false);
+    assert.match(api.getMarkdown(), /Ketikan saat menunggu/);
+    assert.equal(api.isDirty(), true);
+    assert.equal(window.document.getElementById('btn-save').disabled, false);
+  } finally { release(); await restoring; pendingAsk = null; archivedRecoveries = []; await api.flushDraft(); }
 });
