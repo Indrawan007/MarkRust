@@ -158,3 +158,9 @@ Guard revisi ditambahkan pada Baru/Buka/drop setelah operasi async; restore
 menolak dokumen kotor. 144 tes JS lulus. Hasil, batas terbuka dan langkah lanjut
 ada di STATUS-HANDOFF.md; matriks uji native ada di DESKTOP-TEST-CHECKLIST.md.
 M1/M2 tetap belum dinyatakan tuntas tanpa bukti runtime desktop.
+
+### M3 parsial — clipboard HTML
+
+Subclass clipboard menyaring HTML sebelum parser Quill, termasuk kombinasi
+HTML + file. Sanitasi terpisah dari transformasi Markdown. Tes JS 151 lulus;
+uji clipboard OS/network tetap belum dilakukan. Ini belum menutup M3.

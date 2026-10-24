@@ -165,3 +165,21 @@ agar tidak meneruskan subtree yang belum disanitasi. Tes merekam input parser
 Baseline terbaru: **148/148 tes JavaScript lulus**. Ini hardening jalur
 normalisasi Markdown/HTML aplikasi; clipboard native Quill dan network aktual
 masih harus diuji pada checklist P01/P03. CSP/downloader native M3 belum selesai.
+
+## Update clipboard HTML
+
+`ui/core/safe-clipboard.js` mendaftarkan subclass clipboard sebelum instance
+Quill dibuat (aplikasi dan harness sama). convert() selalu menyaring HTML
+melalui template inert; HTML paste yang juga membawa file melewati heuristic
+Quill yang sebelumnya mem-parsing HTML mentah. Untuk kombinasi HTML + file,
+representasi HTML yang disanitasi diprioritaskan, bukan upload heuristic.
+Plaintext/URI-list/file-only tetap menggunakan jalur bawaan.
+
+Sanitasi clipboard sengaja terpisah dari normalisasi Markdown agar label bahasa
+code block/format yang sudah dinormalisasi tidak diubah ulang. Tes regresi
+menjaga round-trip tersebut. Tes clipboard meliputi HTML+file, replacement
+seleksi, bold, user-source event, plaintext dan editor disabled.
+
+Baseline JS: **151/151 lulus**. Event clipboard dites dengan jsdom/Quill asli,
+bukan clipboard OS. Belum ada bukti network inspector webview nyata, uji upload
+file-only native, atau penegakan CSP penuh; checklist P03 tetap BELUM DIUJI.

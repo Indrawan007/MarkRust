@@ -94,6 +94,17 @@ function sanitizeUntrustedHtml(root) {
   }
 }
 
+/** Sanitize clipboard HTML without reapplying Markdown format transforms. */
+export function sanitizeClipboardHtml(html, DOMParserImpl) {
+  var Parser = DOMParserImpl || globalThis.DOMParser;
+  if (!Parser) throw new Error('sanitizeClipboardHtml membutuhkan DOMParser');
+  var doc = new Parser().parseFromString('', 'text/html');
+  var template = doc.createElement('template');
+  template.innerHTML = String(html == null ? '' : html);
+  sanitizeUntrustedHtml(template.content);
+  return template.innerHTML;
+}
+
 export function normalizeForQuill(html, DOMParserImpl) {
   var Parser = DOMParserImpl || globalThis.DOMParser;
   if (!Parser) throw new Error('normalizeForQuill membutuhkan DOMParser');
