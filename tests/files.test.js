@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import {
   basename, isMarkdownFilename, titleFor, openWithTauri, saveWithTauri,
+  readBrowserFile, MAX_DOCUMENT_BYTES,
   confirmDiscard, confirmSaveOnClose, confirmRestore,
   MARKDOWN_FILTERS, DEFAULT_FILENAME, ALLOWED_EXTENSIONS
 } from '../ui/core/files.js';
@@ -164,4 +165,28 @@ test('fallback tanpa window sama sekali -> false, tidak melempar', async () => {
       configurable: true, writable: true, value: original
     });
   }
+});
+
+test('dialog filters cover every supported document extension', () => {
+  assert.deepEqual(MARKDOWN_FILTERS[0].extensions, ALLOWED_EXTENSIONS);
+});
+
+test('browser file read rejects oversized input before allocating a reader and settles abort', async () => {
+  const original = globalThis.FileReader;
+  let reader;
+  let allocations = 0;
+  globalThis.FileReader = class {
+    constructor() { allocations++; reader = this; }
+    readAsText() {}
+  };
+  try {
+    await assert.rejects(readBrowserFile({ name: 'large.md', size: MAX_DOCUMENT_BYTES + 1 }), /10 MiB/);
+    assert.equal(allocations, 0);
+    const aborted = readBrowserFile({ name: 'ok.mkd', size: MAX_DOCUMENT_BYTES });
+    reader.onabort();
+    await assert.rejects(aborted, /dibatalkan/);
+    const loaded = readBrowserFile({ name: 'small.mdown', size: 4 });
+    reader.result = 'text'; reader.onload();
+    assert.deepEqual(await loaded, { path: 'small.mdown', contents: 'text' });
+  } finally { globalThis.FileReader = original; }
 });

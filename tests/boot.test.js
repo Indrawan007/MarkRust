@@ -1098,3 +1098,24 @@ test('ketikan saat save-on-close tertunda membatalkan close meskipun write sukse
     assert.match(window.document.getElementById('file-feedback').textContent, /perubahan baru/);
   } finally { release(); pendingWrite = null; await api.flushDraft(); }
 });
+
+test('drop terlalu besar atau read abort tidak mengubah isi dan melepas busy', async () => {
+  await api.newDocument();
+  api.quill.insertText(0, 'Pertahankan', 'user');
+  const original = globalThis.FileReader;
+  let reader;
+  globalThis.FileReader = class { readAsText() { reader = this; } };
+  try {
+    dispatchFileDrop([{ name: 'large.md', size: 10 * 1024 * 1024 + 1 }]);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(reader, undefined);
+    assert.equal(window.document.getElementById('btn-open').disabled, false);
+    dispatchFileDrop([{ name: 'abort.mkd', size: 4 }]);
+    reader.onabort();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.match(api.getMarkdown(), /Pertahankan/);
+    assert.equal(api.isDirty(), true);
+    assert.equal(window.document.getElementById('btn-open').disabled, false);
+    assert.match(window.document.getElementById('file-feedback').textContent, /Gagal membaca/);
+  } finally { globalThis.FileReader = original; await api.flushDraft(); }
+});

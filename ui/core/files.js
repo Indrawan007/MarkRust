@@ -7,8 +7,11 @@
  * bridge palsu tanpa menjalankan aplikasi desktop.
  */
 
+// Keep extensions and size aligned with document_path/read_document in Rust.
+export const ALLOWED_EXTENSIONS = ['md', 'markdown', 'txt', 'mdown', 'mkd'];
+export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 export const MARKDOWN_FILTERS = [
-  { name: 'Markdown', extensions: ['md', 'markdown', 'txt'] }
+  { name: 'Markdown', extensions: [...ALLOWED_EXTENSIONS] }
 ];
 
 export const DEFAULT_FILENAME = 'dokumen.md';
@@ -29,9 +32,6 @@ export function basename(path) {
   const i = s.lastIndexOf('/');
   return (i >= 0 ? s.slice(i + 1) : s) || DEFAULT_FILENAME;
 }
-
-// Daftar ini harus tetap identik dengan `document_path()` di src-tauri/src/main.rs.
-export const ALLOWED_EXTENSIONS = ['md', 'markdown', 'txt', 'mdown', 'mkd'];
 
 export function isMarkdownFilename(name) {
   return new RegExp('\\.(' + ALLOWED_EXTENSIONS.join('|') + ')$', 'i')
@@ -86,6 +86,10 @@ export async function saveWithTauri(tauri, options) {
 export function readBrowserFile(file) {
   return new Promise(function (resolve, reject) {
     if (!file) { reject(new Error('Tidak ada berkas')); return; }
+    if (file.size > MAX_DOCUMENT_BYTES) {
+      reject(new Error('Berkas terlalu besar (maksimum 10 MiB)'));
+      return;
+    }
     if (typeof FileReader === 'undefined') {
       reject(new Error('FileReader tidak tersedia'));
       return;
@@ -95,6 +99,7 @@ export function readBrowserFile(file) {
       resolve({ path: file.name || DEFAULT_FILENAME, contents: String(reader.result || '') });
     };
     reader.onerror = function () { reject(new Error('Gagal membaca berkas')); };
+    reader.onabort = function () { reject(new Error('Pembacaan berkas dibatalkan')); };
     reader.readAsText(file);
   });
 }

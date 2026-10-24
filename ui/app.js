@@ -32,7 +32,7 @@ import {
 } from './core/image-policy.js';
 import {
   getTauriApi, openWithTauri, saveWithTauri, readBrowserFile,
-  downloadBrowserFile, confirmDiscard, confirmSaveOnClose, confirmRestore,
+  MARKDOWN_FILTERS, downloadBrowserFile, confirmDiscard, confirmSaveOnClose, confirmRestore,
   showError, setWindowTitle, basename, isMarkdownFilename, titleFor,
   DEFAULT_FILENAME
 } from './core/files.js';
@@ -587,19 +587,16 @@ function boot() {
   }
 
   function pickBrowserFile() {
-    return new Promise(function (resolve) {
+    return new Promise(function (resolve, reject) {
       if (typeof document === 'undefined') { resolve(null); return; }
       const input = document.createElement('input');
       input.type = 'file';
-      input.accept = '.md,.markdown,.txt';
+      input.accept = MARKDOWN_FILTERS[0].extensions.map((ext) => '.' + ext).join(',');
       input.addEventListener('cancel', function () { resolve(null); }, { once: true });
       input.addEventListener('change', function () {
         const file = input.files && input.files[0];
         if (!file) { resolve(null); return; }
-        readBrowserFile(file).then(resolve, function (err) {
-          showError(tauri, err && err.message ? err.message : String(err));
-          resolve(null);
-        });
+        readBrowserFile(file).then(resolve, reject);
       });
       input.click();
     });

@@ -150,3 +150,7 @@ Putaran close native: satu konfirmasi untuk request berulang, pengunci
 penggantian dokumen selama close, reject close saat operasi/dialog aktif,
 penanganan exception dan pengecekan dirty setelah save. 193 tes frontend lulus.
 CloseRequested hanya diuji melalui mock; quit/WM native belum terverifikasi.
+
+Putaran read berkas: limit File DOM 10 MiB selaras native, penanganan abort agar
+busy tidak menggantung, error picker tidak lagi dianggap cancel, serta filter
+semua ekstensi didukung. 196 tes frontend lulus; belum uji GUI native/build.

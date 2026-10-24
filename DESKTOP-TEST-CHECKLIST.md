@@ -129,3 +129,8 @@ ini belum dijalankan di webview/OS nyata.
   terbuka dengan dirty dan tulisan baru. Gagal/batal simpan atau gagal konfirmasi
   tidak boleh menutup jendela. Uji native masih belum dilakukan; hasil mock
   callback bukan bukti perilaku event WM/quit seluruh jalur.
+
+- U10: pilih/drop berkas >10 MiB ditolak tanpa mengganti isi; abort/error baca
+  melepas busy Buka dan memungkinkan retry. Tes batas tepat 10 MiB tidak berarti
+  parsing dokumen besar pasti lancar: ukur responsivitas terpisah. Pastikan
+  filter chooser menampilkan .md/.markdown/.txt/.mdown/.mkd. Belum diuji native.

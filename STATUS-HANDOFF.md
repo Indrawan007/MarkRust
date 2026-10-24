@@ -498,3 +498,18 @@ Batas terbuka:
   penggantian dokumen dan cleanup, serta stale save-on-close tercakup.
 - Tidak build/install/push. Tes hanya callback Tauri mock; perilaku window
   manager/event native dan jalur quit yang melewati CloseRequested belum diuji.
+
+## Tahap pemantapan 4 — pembacaan berkas DOM
+
+- readBrowserFile menolak File berukuran >10 MiB sebelum membuat FileReader,
+  selaras batas read_document native. Batas ini berdasarkan File.size, bukan
+  batas memori hasil parsing/Quill; tidak membatasi ukuran saat menyimpan.
+- onabort menolak promise agar lock Buka/drop dilepas; sebelumnya hanya load
+  dan error ditangani sehingga abort dapat meninggalkan operasi menggantung.
+- Error read pada pemilih browser kini diteruskan ke catch openDocument, bukan
+  ditelan sebagai cancel; feedback gagal dan cleanup memakai jalur yang sama.
+- Filter dialog dan accept browser mencakup semua ekstensi yang didukung:
+  md, markdown, txt, mdown, mkd.
+- **196/196 tes frontend lulus**: filter, limit/batas persis, abort, retry read,
+  dan drop terlalu besar/abort mempertahankan isi/dirty serta melepas busy.
+  Tidak build/install/push. FileReader/portal native masih belum diuji nyata.
