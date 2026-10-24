@@ -759,3 +759,77 @@ test('image Cancel and invalid URL leave document unchanged', async () => {
     assert.equal(api.getMarkdown(), before);
   } finally { mock.restore(); }
 });
+
+test('no-edit mode round-trip preserves Delta, visual selection, focus and undo', async () => {
+  nextAskResult = true;
+  api.setMode('wysiwyg');
+  await api.newDocument();
+  api.setMarkdown('Sebelum\n');
+  api.quill.history.clear();
+  api.quill.insertText(0, 'Baru ', 'user');
+  api.quill.history.cutoff();
+  api.quill.setSelection(2, 3, 'silent');
+  const before = JSON.stringify(api.quill.getContents());
+  const undoCount = api.quill.history.stack.undo.length;
+  api.setMode('markdown');
+  api.setMode('wysiwyg');
+  assert.equal(JSON.stringify(api.quill.getContents()), before);
+  assert.equal(api.quill.history.stack.undo.length, undoCount);
+  assert.equal(api.quill.getSelection().index, 2);
+  assert.equal(api.quill.getSelection().length, 3);
+  assert.equal(window.document.activeElement, api.quill.root);
+  api.quill.history.undo();
+  assert.equal(api.quill.getText(), 'Sebelum\n');
+  api.quill.history.redo();
+  assert.equal(api.quill.getText(), 'Baru Sebelum\n');
+});
+
+test('raw edits convert as one undoable boundary without marking clean', async () => {
+  await api.newDocument();
+  api.setMarkdown('Sebelum\n');
+  api.quill.history.clear();
+  api.setMode('markdown');
+  const raw = window.document.getElementById('raw-textarea');
+  raw.value = '**Sesudah**\n';
+  raw.dispatchEvent(new window.Event('input', { bubbles: true }));
+  api.setMode('wysiwyg');
+  assert.equal(api.isDirty(), true);
+  assert.match(api.getMarkdown(), /\*\*Sesudah\*\*/);
+  api.quill.history.undo();
+  assert.equal(api.quill.getText(), 'Sebelum\n');
+  api.quill.history.redo();
+  assert.match(api.getMarkdown(), /\*\*Sesudah\*\*/);
+});
+
+test('raw selection is retained on unchanged revisits, clean toggles stay clean', async () => {
+  await api.newDocument();
+  api.setMarkdown('abcdef\n');
+  api.setMode('markdown');
+  const raw = window.document.getElementById('raw-textarea');
+  assert.equal(window.document.activeElement, raw);
+  raw.setSelectionRange(1, 4, 'backward');
+  api.setMode('wysiwyg');
+  api.setMode('markdown');
+  assert.equal(raw.selectionStart, 1);
+  assert.equal(raw.selectionEnd, 4);
+  assert.equal(raw.selectionDirection, 'backward');
+  assert.equal(api.isDirty(), false);
+  assert.equal(window.document.getElementById('btn-markdown').getAttribute('aria-pressed'), 'true');
+  api.setMode('wysiwyg');
+});
+
+test('document replacement in raw mode cannot undo back into the previous document', async () => {
+  await api.newDocument();
+  api.setMarkdown('Ancien\n');
+  api.quill.insertText(0, 'Edit ', 'user');
+  api.setMode('markdown');
+  await api.newDocument();
+  const raw = window.document.getElementById('raw-textarea');
+  raw.value = 'Dokumen pengganti\n';
+  raw.dispatchEvent(new window.Event('input', { bubbles: true }));
+  api.setMode('wysiwyg');
+  api.quill.history.undo();
+  assert.equal(api.quill.getText(), 'Dokumen pengganti\n');
+  assert.equal(api.setMode('invalid'), false);
+  assert.equal(window.document.getElementById('sb-mode').textContent, 'WYSIWYG');
+});

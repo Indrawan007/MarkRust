@@ -464,25 +464,71 @@ function boot() {
     updateStats();
   }
 
+  let visualSelection = { index: 0, length: 0 };
+  let modeSnapshot = null;
+  let rawPosition = null;
+  quill.on('selection-change', function (range) {
+    if (range) visualSelection = { index: range.index, length: range.length };
+  });
+
   function setMode(mode) {
-    if (mode === currentMode) return;
+    if (!['markdown', 'wysiwyg'].includes(mode) || hasOpenAppDialog()) return false;
+    if (mode === currentMode) return true;
 
     if (mode === 'markdown') {
-      textarea.value = quillToMarkdown();
+      const markdown = quillToMarkdown();
+      const range = quill.getSelection() || visualSelection;
+      modeSnapshot = {
+        generation: documentGeneration, markdown,
+        range: { index: range.index, length: range.length },
+        scrollTop: quill.root.scrollTop
+      };
+      textarea.value = markdown;
       editorWrap.style.display = 'none';
       rawView.style.display = 'flex';
       textarea.focus();
+      if (rawPosition && rawPosition.generation === documentGeneration && rawPosition.text === markdown) {
+        textarea.setSelectionRange(rawPosition.start, rawPosition.end, rawPosition.direction);
+        textarea.scrollTop = rawPosition.scrollTop;
+      } else {
+        textarea.setSelectionRange(0, 0);
+        textarea.scrollTop = 0;
+      }
     } else {
-      loadMarkdownIntoQuill(textarea.value);
+      rawPosition = {
+        generation: documentGeneration, text: textarea.value,
+        start: textarea.selectionStart, end: textarea.selectionEnd,
+        direction: textarea.selectionDirection, scrollTop: textarea.scrollTop
+      };
+      if (!modeSnapshot || modeSnapshot.generation !== documentGeneration) {
+        loadMarkdownIntoQuill(textarea.value); // Replacement document: old history must not leak.
+      } else if (textarea.value !== modeSnapshot.markdown) {
+        // One undoable conversion boundary instead of silently clearing history.
+        const delta = quill.clipboard.convert({ html: toHtml(textarea.value), text: '' });
+        quill.history.cutoff();
+        quill.setContents(delta, 'api');
+        quill.history.cutoff();
+      }
+      // Unchanged Markdown: keep the existing Delta/DOM and entire undo stack.
       rawView.style.display = 'none';
       editorWrap.style.display = 'flex';
+      quill.focus();
+      const range = modeSnapshot?.generation === documentGeneration
+        ? modeSnapshot.range : { index: 0, length: 0 };
+      const index = Math.min(range.index, Math.max(0, quill.getLength() - 1));
+      const length = Math.min(range.length, Math.max(0, quill.getLength() - 1 - index));
+      quill.setSelection(index, length, 'silent');
+      if (modeSnapshot?.generation === documentGeneration) quill.root.scrollTop = modeSnapshot.scrollTop;
     }
 
     currentMode = mode;
     btnWysiwyg.classList.toggle('active', mode === 'wysiwyg');
     btnMarkdown.classList.toggle('active', mode === 'markdown');
+    btnWysiwyg.setAttribute('aria-pressed', String(mode === 'wysiwyg'));
+    btnMarkdown.setAttribute('aria-pressed', String(mode === 'markdown'));
     sbMode.textContent = mode === 'wysiwyg' ? 'WYSIWYG' : 'Markdown';
     updateStats();
+    return true;
   }
 
   btnWysiwyg.addEventListener('click', function () { setMode('wysiwyg'); });

@@ -359,3 +359,28 @@ URL invalid, submit stale, fokus/seleksi, picker berulang, event lama dan gagal
 showModal. Ini tes jsdom; native Escape/focus di Hyprland belum diverifikasi.
 Tidak ada build/install/push/CI pada tahap ini. Tahap editing dua mode dan
 pemisahan recovery yang ditunda dari sesi edit baru masih pekerjaan berikutnya.
+
+## Tahap pemantapan 2 — perpindahan mode dan history
+
+Kembali ke WYSIWYG tanpa perubahan Markdown tidak lagi memuat ulang Quill atau
+menghapus history. Delta/DOM tetap dipertahankan. Bila raw Markdown berubah pada
+dokumen yang sama, konversi memakai satu batas history yang dapat di-undo/redo.
+Dokumen pengganti tetap memutus history lama agar Undo tidak membocorkan isi
+dokumen sebelumnya. Fokus kembali ke editor aktif; seleksi visual diingat dan
+dibatasi panjang dokumen. Seleksi raw disimpan pada kunjungan ulang bila teks
+masih sama. Tombol mode memiliki aria-pressed; mode invalid/modal ditolak.
+
+Baseline **179/179 tes frontend lulus**. Tes tambahan memeriksa Delta, panjang
+undo stack, undo/redo setelah no-op toggle dan raw edit, fokus/seleksi, dirty
+state dan pemutusan history saat dokumen diganti dalam mode raw.
+
+Batas: ini bukan pemetaan posisi presisi antara offset sintaks Markdown dan
+posisi visual Quill, bukan jaminan raw source round-trip lossless, dan bukan
+penyatuan native textarea undo dengan Quill. Saat kembali dari raw edit, seleksi
+visual memakai posisi sebelumnya yang di-clamp; format yang tidak didukung
+serializer tetap mengikuti batas lama. Scroll/fokus nyata di Hyprland belum
+diuji. Tidak ada build/install/push/CI pada tahap ini.
+
+Berikutnya: tahap 3, audit recovery ditunda/rusak dan pemisahan recovery yang
+belum dipilih dari pekerjaan baru. Jangan menandai lifecycle ini selesai hanya
+karena dialog Nanti saja tidak langsung menghapus file.

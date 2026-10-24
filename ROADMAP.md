@@ -103,3 +103,11 @@ seleksi/fokus, penolakan submit stale, satu picker recovery aktif, serta cleanup
 listener/event lama. 175 tes frontend lulus. Tidak ada build/push; uji native
 belum dilakukan. Berikutnya audit editing dua mode (seleksi, fokus, undo/redo,
 paste), kemudian lifecycle recovery yang ditunda/rusak.
+
+### Tahap pemantapan 2 — mode editor/history
+
+No-edit toggle tidak lagi mereset Delta atau undo. Raw edit pada dokumen yang
+sama diterapkan sebagai satu langkah konversi undoable; replacement document
+memutus history lama. Fokus/seleksi per mode dan aria-pressed diperbaiki.
+179 tes frontend lulus, tanpa build/push. Selanjutnya lifecycle recovery yang
+ditunda/rusak; mapping offset lintas sintaks dan uji Hyprland bukan klaim tahap ini.
