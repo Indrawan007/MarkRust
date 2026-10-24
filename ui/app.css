@@ -842,3 +842,6 @@
 }
 #document-notices > :not([hidden]) { margin: 6px 0; }
 #document-notices #sb-notice { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+
+#btn-close[hidden] { display: none; }
+#btn-close:hover { color: #f28b82; }

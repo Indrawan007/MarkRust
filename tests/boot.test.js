@@ -28,6 +28,8 @@ const titles = [];
 const asks = [];
 const closeHandlers = [];
 const destroyed = [];
+let nativeCloseRequests = 0;
+let failNativeClose = false;
 let nextAskResult = true;
 let nextCloseResult = undefined;
 let nextDeleteResult = 'Batal';
@@ -101,6 +103,13 @@ window.__TAURI__ = {
     getCurrentWindow: () => ({
       setTitle: async (t) => { titles.push(t); },
       onCloseRequested: async (fn) => { closeHandlers.push(fn); return () => {}; },
+      close: async () => {
+        nativeCloseRequests++;
+        if (failNativeClose) throw new Error('close denied');
+        let prevented = false;
+        await closeHandlers.at(-1)?.({ preventDefault() { prevented = true; } });
+        if (!prevented) destroyed.push(true);
+      },
       destroy: async () => { destroyed.push(true); }
     })
   }
@@ -1667,4 +1676,61 @@ test('formatting without count changes does not rewrite statistic text nodes', a
     await new Promise((resolve) => setTimeout(resolve, 170));
     assert.equal(mutations, 0);
   } finally { observer.disconnect(); await api.flushDraft(); }
+});
+
+test('toolbar close uses guarded CloseRequested: cancel/failure retain data, clean/save may close', async () => {
+  await api.newDocument();
+  let closed = destroyed.length;
+  assert.equal(await api.requestAppClose(), true);
+  assert.equal(destroyed.length, ++closed);
+  api.quill.insertText(0, 'Do not lose', 'user');
+  nextCloseResult = 'Batal';
+  assert.equal(await api.requestAppClose(), true, 'request was delivered, but cancellation keeps window');
+  assert.equal(destroyed.length, closed);
+  assert.equal(api.isDirty(), true);
+  nextCloseResult = 'Simpan';
+  failWrite = true;
+  try {
+    assert.equal(await api.requestAppClose(), true);
+    assert.equal(destroyed.length, closed);
+    assert.equal(api.isDirty(), true);
+  } finally { failWrite = false; }
+  assert.equal(await api.requestAppClose(), true);
+  assert.equal(destroyed.length, closed + 1);
+  assert.equal(api.isDirty(), false);
+  nextCloseResult = undefined;
+});
+
+test('Ctrl+Q/button request close; repeated requests and native errors are handled', async () => {
+  await api.newDocument();
+  api.quill.insertText(0, 'Still here', 'user');
+  let release;
+  pendingAsk = new Promise((resolve) => { release = resolve; });
+  nextCloseResult = 'Batal';
+  const button = window.document.getElementById('btn-close');
+  const before = nativeCloseRequests;
+  const event = new window.KeyboardEvent('keydown', { key: 'q', ctrlKey: true, bubbles: true, cancelable: true });
+  window.document.dispatchEvent(event);
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(event.defaultPrevented, true);
+    assert.equal(button.disabled, true);
+    assert.equal(await api.requestAppClose(), false);
+    assert.equal(nativeCloseRequests, before + 1);
+  } finally { release(); pendingAsk = null; await new Promise((resolve) => setTimeout(resolve, 0)); nextCloseResult = undefined; }
+  failNativeClose = true;
+  try {
+    button.click();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(button.disabled, false);
+    assert.match(window.document.getElementById('file-feedback').textContent, /Gagal meminta tutup/);
+    assert.equal(api.isDirty(), true);
+  } finally { failNativeClose = false; await api.flushDraft(); }
+});
+
+test('main-window capability permits close requests and Tauri guarded listener completion', () => {
+  const capability = JSON.parse(readVendor('src-tauri/capabilities/default.json'));
+  assert.deepEqual(capability.windows, ['main']);
+  assert.ok(capability.permissions.includes('core:window:allow-close'));
+  assert.ok(capability.permissions.includes('core:window:allow-destroy'));
 });

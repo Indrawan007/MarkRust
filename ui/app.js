@@ -289,6 +289,7 @@ function boot() {
   let openInProgress = false;
   let newInProgress = false;
   let closeInProgress = false;
+  let closeRequestInProgress = false;
   let restoreInProgress = false;
 
   function getCanonicalMarkdown() {
@@ -781,6 +782,7 @@ function boot() {
       case 'open': return openDocument();
       case 'save': return saveDocument(false);
       case 'save_as': return saveDocument(true);
+      case 'close': return requestAppClose();
       case 'toggle_mode': toggleMode(); return true;
       default: return false;
     }
@@ -792,6 +794,32 @@ function boot() {
     saveDocument(e.shiftKey);
   });
 
+  const btnClose = document.getElementById('btn-close');
+  btnClose.hidden = !tauri;
+  btnClose.addEventListener('click', requestAppClose);
+
+  async function requestAppClose() {
+    if (!tauri || closeRequestInProgress || closeInProgress || restoreInProgress || saveInProgress || openInProgress || newInProgress || hasOpenAppDialog()) return false;
+    if (dirty && !closeHandlerRegistered) {
+      fileFeedback('Tutup belum siap: pengaman perubahan belum terpasang. Simpan berkas terlebih dahulu.', 'warning');
+      return false;
+    }
+    closeRequestInProgress = true;
+    btnClose.disabled = true;
+    try {
+      const win = tauri.window?.getCurrentWindow?.();
+      if (typeof win?.close !== 'function') throw new Error('API tutup jendela tidak tersedia');
+      await win.close(); // Emits CloseRequested; never bypass the save/cancel handler.
+      return true; // Request sent, not a guarantee the user allowed closing.
+    } catch (err) {
+      fileFeedback('Gagal meminta tutup aplikasi. ' + String(err?.message || err), 'error');
+      return false;
+    } finally {
+      closeRequestInProgress = false;
+      btnClose.disabled = false;
+    }
+  }
+
   // Toolbar and centralized shortcuts replace the redundant native file menu.
   document.addEventListener('keydown', function (e) {
     if (e.defaultPrevented || e.isComposing || e.altKey || !(e.ctrlKey || e.metaKey)) return;
@@ -799,6 +827,7 @@ function boot() {
     const action = key === 's' ? (e.shiftKey ? 'save_as' : 'save')
       : key === 'o' ? 'open'
       : key === 'n' ? 'new'
+      : key === 'q' && tauri ? 'close'
       : key === 'm' && e.shiftKey ? 'toggle_mode' : null;
     if (!action) return; // Leave copy/paste, undo, navigation etc. alone.
     e.preventDefault();
@@ -871,7 +900,7 @@ function boot() {
     try {
       const win = tauri.window.getCurrentWindow();
       if (win && typeof win.onCloseRequested === 'function') {
-        win.onCloseRequested(async function (event) {
+        Promise.resolve(win.onCloseRequested(async function (event) {
           if (restoreInProgress || closeInProgress || saveInProgress || openInProgress || newInProgress || hasOpenAppDialog()) {
             event.preventDefault();
             return;
@@ -912,8 +941,9 @@ function boot() {
           } finally {
             closeInProgress = false;
           }
+        })).then(() => { closeHandlerRegistered = true; }, (err) => {
+          fileFeedback('Pengaman tutup jendela gagal dipasang. Simpan berkas sebelum keluar. ' + String(err?.message || err), 'error');
         });
-        closeHandlerRegistered = true;
       }
     } catch (e) { /* draf tetap menjadi jaminan */ }
   }
@@ -1258,6 +1288,7 @@ function boot() {
     isDirty: function () { return dirty; },
     markClean: markClean,
     getPath: function () { return currentPath; },
+    requestAppClose: requestAppClose,
     newDocument: newDocument,
     openDocument: openDocument,
     saveDocument: saveDocument,

@@ -776,3 +776,22 @@ Npm audit 0 vulnerabilities, node --check app/core, bash -n dan diff check lulus
 AUDIT.md mencatat temuan, bukti, dan batas terbuka: preflight race, alias path,
 partial delete, legacy tabs dan backlog native snapshot berbeda. Tidak mengklaim
 bebas bug atau percepatan GUI terukur; perlu retest runtime Arch.
+
+## Integrasi tutup dan README berorientasi pengguna
+
+- Tambah tombol × di kanan toolbar dan Ctrl+Q native. requestAppClose memanggil
+  Window.close (CloseRequested), bukan destroy langsung, sehingga save/discard/
+  cancel dan final-backup guard tetap berlaku. Dirty close ditolak jika listener
+  belum berhasil terpasang; registration promise kini ditangani eksplisit.
+- Capability main menambah allow-close dan allow-destroy: implementasi Tauri
+  onCloseRequested memanggil destroy setelah handler selesai tanpa preventDefault.
+  Ini tidak mengganti alur aplikasi menjadi force-kill. Bentuk API diperiksa
+  dari packages/api/src/window.ts upstream Tauri; actual portal/Hyprland perlu uji.
+- Preview browser menyembunyikan tombol native dan tidak mengambil Ctrl+Q browser.
+  Request async berulang, dialog/operasi aktif dan native command error ditangani.
+- README ditulis ulang: pengenalan, fitur, instalasi/update/rollback, pemakaian dan
+  pintasan, close Hyprland, recovery/gambar, serta batas ringkas. History teknis
+  dipindahkan secara konseptual ke link dokumen pengembangan yang sudah tersedia.
+- 238/238 tes frontend lulus. Empat tes baru mencakup close/cancel/save failure,
+  Ctrl+Q/repeat/error, ACL main dan browser fallback. Rebuild native diperlukan
+  karena perubahan capability; belum uji tombol/shortcut pada Hyprland aktual.

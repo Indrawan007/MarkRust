@@ -80,3 +80,11 @@ test('browser archive export downloads a copy without changing dirty editor or l
     api.discardDraft(); api.markClean();
   }
 });
+
+test('browser preview hides native close button and leaves Ctrl+Q to the browser', async () => {
+  assert.equal(window.document.getElementById('btn-close').hidden, true);
+  assert.equal(await api.requestAppClose(), false);
+  const event = new window.KeyboardEvent('keydown', { key: 'q', ctrlKey: true, bubbles: true, cancelable: true });
+  window.document.dispatchEvent(event);
+  assert.equal(event.defaultPrevented, false);
+});

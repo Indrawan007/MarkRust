@@ -210,3 +210,10 @@ ini belum dijalankan di webview/OS nyata.
   dapat diakses saat dirty/backup gagal/ada tombol Muat gambar. Scroll sampai
   akhir pada kedua mode dan resize jendela: baris terakhir bisa berada di atas
   panel. Screenshot revisi lama sudah diterima; revisi ini belum diuji native.
+
+- U24: rebuild frontend+capability terbaru; tombol × toolbar dan Ctrl+Q harus
+  meminta close melalui Tauri. Clean dapat tutup; dirty menawarkan tiga pilihan.
+  Batal/gagal Save tidak menutup atau kehilangan isi. Tekan berulang saat prompt:
+  tidak boleh menggandakan konfirmasi. Test floating/tiled Hyprland tanpa asumsi
+  Alt+F4 atau dekorasi tersedia. Periksa log permission denied (close/destroy).
+  Mock/ACL lulus; perilaku native revisi ini BELUM DIUJI.
