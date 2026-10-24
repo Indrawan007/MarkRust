@@ -495,6 +495,14 @@ function boot() {
   }
   syncToolbarHeight();
 
+  const statusbar = document.getElementById('statusbar');
+  function syncStatusClearance() {
+    document.documentElement.style.setProperty('--status-clearance', Math.max(80, statusbar.offsetHeight + 32) + 'px');
+  }
+  if (window.ResizeObserver) new window.ResizeObserver(syncStatusClearance).observe(statusbar);
+  else window.addEventListener('resize', syncStatusClearance);
+  syncStatusClearance();
+
   function loadMarkdownIntoQuill(md) {
     const html = toHtml(md);
     quill.setContents([{ insert: '\n' }], 'silent');
@@ -767,8 +775,7 @@ function boot() {
     saveDocument(e.shiftKey);
   });
 
-  // Pintasan keyboard ditangani terpusat di sini. Menu native sengaja tidak
-  // memasang accelerator supaya tidak ada dobel-trigger Ctrl+S.
+  // Toolbar and centralized shortcuts replace the redundant native file menu.
   document.addEventListener('keydown', function (e) {
     if (e.defaultPrevented || e.isComposing || e.altKey || !(e.ctrlKey || e.metaKey)) return;
     const key = String(e.key || '').toLowerCase();
@@ -781,15 +788,6 @@ function boot() {
     if (e.repeat || hasOpenAppDialog()) return;
     handleMenuAction(action);
   });
-
-  // Event dari menu native Rust (Berkas > ...).
-  if (tauri && tauri.event && typeof tauri.event.listen === 'function') {
-    try {
-      tauri.event.listen('markrust://menu', function (event) {
-        handleMenuAction(event && event.payload);
-      });
-    } catch (e) { /* diabaikan: frontend tetap bisa lewat tombol & shortcut */ }
-  }
 
   // Drag & drop berkas .md (berjalan di webview maupun browser).
   document.addEventListener('dragover', function (e) { e.preventDefault(); });
@@ -1081,6 +1079,7 @@ function boot() {
       delete btnLoadImages.dataset.count;
       sbNotice.hidden = remoteImageCount(canonical) === 0;
       setImageNotice(sbNotice.hidden ? '' : 'Beralih ke WYSIWYG untuk meninjau dan memuat gambar.');
+      syncStatusClearance();
       return;
     }
 
@@ -1107,6 +1106,7 @@ function boot() {
         ? total + ' gambar jarak jauh diizinkan'
         : '');
     }
+    syncStatusClearance();
   }
 
   let imageLoadInProgress = false;

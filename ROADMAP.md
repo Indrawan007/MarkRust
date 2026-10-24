@@ -228,3 +228,9 @@ frontend Node22 dan Rust build/test di Linux/Windows/macOS. Bukan dukungan targe
 publik baru atau bukti GUI Hyprland. Gate berikutnya: build lokal dan uji GUI
 Arch dengan dokumen percobaan. Artefak hanya cargo-lock; checkout lockfile belum
 diselaraskan karena unduhan storage eksternal terblokir dari sandbox.
+
+Review GUI pertama dari screenshot pengguna: menu native Berkas yang duplikat
+dihapus, status menjadi panel floating kanan bawah sesuai preferensi. 229 tes
+frontend lulus. Clearance editor dinamis mempertahankan akses baris akhir.
+Perubahan mengesampingkan keputusan status strip penuh sebelumnya; uji visual
+revisi baru dan checklist native lanjut belum dilakukan.

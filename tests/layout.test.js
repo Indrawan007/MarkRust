@@ -38,3 +38,16 @@ test('dialog centering overrides global reset and tall content can scroll', () =
     }
   } finally { dom.window.close(); }
 });
+
+test('status is a compact floating panel anchored bottom-right, not a full-width footer', () => {
+  const dom = setup();
+  try {
+    const css = dom.window.getComputedStyle(dom.window.document.getElementById('statusbar'));
+    assert.equal(css.position, 'fixed');
+    assert.equal(css.right, '16px');
+    assert.equal(css.bottom, '16px');
+    assert.equal(css.width, 'max-content');
+    assert.equal(css.borderRadius, '12px');
+    assert.equal(css.maxHeight, '40vh');
+  } finally { dom.window.close(); }
+});

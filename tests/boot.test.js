@@ -1540,3 +1540,19 @@ test('cleanup can explicitly remove corrupt legacy without clearing native works
     assert.equal(api.isDirty(), true);
   } finally { mock.restore(); nextDeleteResult = 'Batal'; window.localStorage.removeItem(api.draftKey); await api.flushDraft(); }
 });
+
+test('floating status clearance grows with panel height to keep final editor lines reachable', () => {
+  const panel = window.document.getElementById('statusbar');
+  Object.defineProperty(panel, 'offsetHeight', { configurable: true, value: 144 });
+  try {
+    window.dispatchEvent(new window.Event('resize'));
+    assert.equal(window.document.documentElement.style.getPropertyValue('--status-clearance'), '176px');
+  } finally { delete panel.offsetHeight; window.dispatchEvent(new window.Event('resize')); }
+});
+
+test('native duplicate Berkas menu is not created by the Rust entry point', () => {
+  const source = readVendor('src-tauri/src/main.rs');
+  assert.equal(source.includes('app.set_menu'), false);
+  assert.equal(source.includes('MenuItemBuilder'), false);
+  assert.equal(source.includes('markrust://menu'), false);
+});

@@ -5,8 +5,6 @@ mod remote_image;
 
 use std::fs;
 use std::path::PathBuf;
-use tauri::menu::{MenuBuilder, MenuItemBuilder, SubmenuBuilder};
-use tauri::Emitter;
 
 /// Batas ukuran berkas yang boleh dibuka. Editor memuat seluruh dokumen ke
 /// memori (Delta Quill), jadi berkas raksasa harus ditolak lebih awal.
@@ -76,28 +74,6 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .invoke_handler(tauri::generate_handler![read_document, write_document, recovery::write_recovery, recovery::read_recovery, recovery::clear_recovery, recovery::list_recoveries, recovery::select_recovery, recovery::delete_recovery, remote_image::download_image])
-        .setup(|app| {
-            // Menu native tanpa accelerator: pintasan keyboard ditangani
-            // terpusat di frontend. Kalau keduanya aktif, Ctrl+S bisa memicu
-            // dua kali simpan pada platform yang meneruskan keydown ke webview.
-            let new_item = MenuItemBuilder::with_id("new", "Dokumen Baru").build(app)?;
-            let open_item = MenuItemBuilder::with_id("open", "Buka…").build(app)?;
-            let save_item = MenuItemBuilder::with_id("save", "Simpan").build(app)?;
-            let save_as_item = MenuItemBuilder::with_id("save_as", "Simpan Sebagai…").build(app)?;
-            let mode_item =
-                MenuItemBuilder::with_id("toggle_mode", "Ganti Mode WYSIWYG/Markdown")
-                    .build(app)?;
-
-            let file_menu = SubmenuBuilder::new(app, "Berkas")
-                .items(&[&new_item, &open_item, &save_item, &save_as_item, &mode_item])
-                .build()?;
-            app.set_menu(MenuBuilder::new(app).items(&[&file_menu]).build()?)?;
-
-            app.on_menu_event(|handle, event| {
-                let _ = handle.emit("markrust://menu", event.id().0.clone());
-            });
-            Ok(())
-        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

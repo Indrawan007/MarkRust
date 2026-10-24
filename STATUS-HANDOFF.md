@@ -731,3 +731,20 @@ diperbarui; jangan mengklaim sudah diselaraskan. Hasil job/step diperiksa lewat
 gh run view/API: semua langkah build/test sukses. Tidak ada binary lokal yang
 terbentuk. GUI WebKitGTK/portal/clipboard/restart nyata Arch+Hyprland tetap perlu
 uji. Ada anotasi deprecation actions Node20, bukan kegagalan build.
+
+## Review GUI pengguna — hapus menu duplikat, status floating
+
+Pengguna mengirim screenshot aplikasi berjalan pada mesin Arch/Hyprland dan
+meminta menu atas Berkas dihapus, status diubah mengambang kanan bawah.
+- Pembuatan menu Berkas dan event emitter native di main.rs dihapus. Toolbar
+  dan shortcut tetap menjadi aksi utama; bridge event menu lama tidak dipasang.
+- Status menjadi panel fixed kanan/bawah 16px, ukuran mengikuti isi, dibatasi
+  lebar/tinggi viewport, border/radius/shadow ringan. Tidak menghilang sendiri.
+  Dirty, kegagalan backup, notice dan tombol Muat gambar tetap tersedia.
+- Clearance bawah editor visual/raw mengikuti tinggi panel via ResizeObserver
+  (fallback resize/updateStats), agar baris akhir dapat discroll di atas panel.
+- 229/229 tes frontend lulus, termasuk cascade floating, clearance dinamis dan
+  regresi menu native. CSS/jsdom bukan verifikasi posisi pixel native.
+- Screenshot pengguna membuktikan aplikasi terbuka/render dasar di Arch, bukan
+  semua checklist clipboard/recovery/dialog/konflik sudah lulus. Revisi tampilan
+  baru ini perlu rebuild dan dicek lagi pada mesin pengguna.

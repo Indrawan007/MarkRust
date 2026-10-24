@@ -204,3 +204,9 @@ ini belum dijalankan di webview/OS nyata.
   multi-file bisa parsial bila I/O gagal. TEST-SESSION.md berisi runbook prioritas.
   Native dan pengujian dua browser tab sebenarnya BELUM DIUJI; tes otomatis
   memakai IPC/Web Locks mock, bukan bukti OS/runtime.
+
+- U23: setelah rebuild, menu atas Berkas hilang tetapi tombol/shortcut berkas
+  tetap bekerja. Status floating kanan bawah (bukan strip lebar penuh), tetap
+  dapat diakses saat dirty/backup gagal/ada tombol Muat gambar. Scroll sampai
+  akhir pada kedua mode dan resize jendela: baris terakhir bisa berada di atas
+  panel. Screenshot revisi lama sudah diterima; revisi ini belum diuji native.

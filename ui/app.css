@@ -606,27 +606,32 @@
 
   #raw-view textarea::placeholder { color: var(--text-muted); }
 
-  /* ====== STATUS BAR ======
-     Selalu tampil. Status bar yang hilang sendiri membuat informasi jumlah
-     kata tidak bisa dibaca diam-diam; lebih jujur menyediakan ruang 28px
-     yang konsisten di bawah editor. */
+  /* Floating status panel: no full-width strip consuming editor space. */
   #statusbar {
-    flex: none;
+    position: fixed;
+    right: 16px;
+    bottom: 16px;
+    z-index: 20;
     display: flex;
     align-items: center;
-    gap: 10px;
-    min-height: 28px;
-    padding: 5px 14px;
+    gap: 8px 12px;
+    width: max-content;
+    max-width: min(640px, calc(100vw - 32px));
+    max-height: 40vh;
+    overflow: auto;
+    padding: 8px 12px;
     flex-wrap: wrap;
-    background: var(--bg-deep);
-    border-top: 1px solid var(--border);
+    background: rgba(13, 15, 18, 0.96);
+    border: 1px solid var(--border-hi);
+    border-radius: 12px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.28);
     font-size: 11px;
     font-variant-numeric: tabular-nums;
     color: var(--text-muted);
     user-select: none;
   }
-  #statusbar .sb-left { display: flex; flex: 1 1 260px; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
-  #statusbar .sb-right { display: flex; flex: 1 1 240px; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; min-width: 0; margin-left: auto; }
+  #statusbar .sb-left { display: flex; flex: 0 1 auto; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+  #statusbar .sb-right { display: flex; flex: 0 1 auto; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; min-width: 0; margin-left: auto; }
   #statusbar .sb-sep {
     flex: none;
     width: 3px;
@@ -813,3 +818,7 @@
 }
 #recovery-dialog button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 #recovery-dialog button:disabled { color: var(--text-muted); cursor: not-allowed; }
+
+/* Scroll the final lines clear of the floating panel in both editing modes. */
+.ql-editor { padding-bottom: var(--status-clearance, 80px) !important; }
+#raw-view textarea { padding-bottom: var(--status-clearance, 80px); }
