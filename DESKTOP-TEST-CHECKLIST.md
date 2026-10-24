@@ -147,3 +147,12 @@ ini belum dijalankan di webview/OS nyata.
   membuka operasi lain. Ketik saat menunggu: konfirmasi restore tidak boleh
   menimpa tulisan baru dan memberi feedback stale. Gagal dialog/read lalu retry:
   lock/busy lepas, sumber recovery tetap ada. Masih belum diuji native.
+
+- U14: jendela tiled sempit (mis. 320/480 px), nama/path panjang, dirty, gagal
+  cadangan dan notice gambar: status membungkus tanpa menghilangkan tombol Muat
+  gambar/peringatan; editor masih mendapat ruang yang layak. Cek scaling nyata.
+- U15: dialog gambar/recovery di tengah, dapat scroll pada viewport pendek,
+  tombol fokus terlihat dan item rusak disabled. Dengan screen reader bila
+  tersedia, statistik mengetik tidak terus diumumkan; perubahan status penting
+  tetap terbaca. Tes CSS cascade tidak memvalidasi geometri maupun speech AT.
+  Keduanya tetap BELUM DIUJI native.

@@ -164,3 +164,9 @@ Putaran koordinasi recovery: busy controls dan pengunci antar-operasi selama
 restore, catch error konfirmasi, cleanup untuk retry, dan feedback saat restore
 stale akibat ketikan. 201 tes frontend lulus. Tidak mengklaim native selesai;
 cleanup arsip/quota dan isolasi fallback browser tetap pekerjaan terbuka.
+
+Putaran keterbacaan status/dialog: wrap grup status untuk jendela sempit,
+peringatan panjang, pemusatan/scroll dialog dan tema recovery, serta live region
+terpisah dari statistik dengan deduplikasi notice. 204 tes frontend lulus.
+Computed CSS/jsdom bukan bukti layout/native atau screen reader; validasi visual
+pada viewport kecil/scaling tetap belum dilakukan. Build tetap menunggu izin.

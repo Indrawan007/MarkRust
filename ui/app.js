@@ -957,6 +957,13 @@ function boot() {
   /* =========================================================
    * 6. Statistik — selalu dari sumber Markdown kanonik yang sama.
    * ======================================================= */
+  function setImageNotice(text) {
+    // Reassigning identical text still creates live-region mutations.
+    if (sbNotice.textContent === text) return;
+    sbNotice.textContent = text;
+    sbNotice.title = text;
+  }
+
   let statsTimer = null;
   function updateStats() {
     const canonical = getCanonicalMarkdown();
@@ -970,7 +977,7 @@ function boot() {
       btnLoadImages.hidden = true;
       delete btnLoadImages.dataset.count;
       sbNotice.hidden = remoteImageCount(canonical) === 0;
-      sbNotice.textContent = sbNotice.hidden ? '' : 'Beralih ke WYSIWYG untuk meninjau dan memuat gambar.';
+      setImageNotice(sbNotice.hidden ? '' : 'Beralih ke WYSIWYG untuk meninjau dan memuat gambar.');
       return;
     }
 
@@ -986,16 +993,16 @@ function boot() {
 
     if (blocked.length) {
       sbNotice.hidden = false;
-      sbNotice.textContent = blocked.length + ' gambar jarak jauh diblokir';
+      setImageNotice(blocked.length + ' gambar jarak jauh diblokir');
       btnLoadImages.hidden = false;
       btnLoadImages.textContent = 'Muat gambar (' + blocked.length + ')';
       btnLoadImages.dataset.count = String(blocked.length);
     } else {
       btnLoadImages.hidden = true;
       sbNotice.hidden = total === 0;
-      sbNotice.textContent = total
+      setImageNotice(total
         ? total + ' gambar jarak jauh diizinkan'
-        : '';
+        : '');
     }
   }
 

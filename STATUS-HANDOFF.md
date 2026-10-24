@@ -544,3 +544,21 @@ Batas terbuka:
   + retry, arsip tetap, dan ketikan saat konfirmasi mempertahankan isi/dirty.
 - Tidak build/install/push. Native recovery Rust tetap belum dikompilasi/diuji;
   arsip cleanup/quota dan isolasi browser/legacy satu-key tetap belum selesai.
+
+## Tahap pemantapan 4 — status bar/dialog dan live regions
+
+- Status bar dan grupnya dapat wrap; peringatan cadangan boleh memecah teks
+  panjang. Nama file masih ellipsis/title; angka/mode/dirty tidak menyusut.
+- Dialog gambar/recovery mengembalikan margin auto yang ditimpa global reset,
+  membatasi tinggi dan mengizinkan scroll. Recovery mendapat warna/border/button
+  konsisten, focus ring dan tampilan item disabled.
+- Seluruh footer bukan lagi live region: perubahan statistik saat mengetik
+  tidak ikut diumumkan. Dirty, kegagalan cadangan, notice gambar dan feedback
+  berkas memiliki status region tersendiri. Teks notice yang identik tidak
+  ditulis ulang, agar update statistik tidak terus membuat mutasi live region.
+- **204/204 tes frontend lulus**: semantik live region, MutationObserver notice,
+  serta computed CSS cascade untuk wrap, margin auto dan scroll dialog.
+- tests/layout.test.js bukan rendering browser: jsdom tidak menghitung layout
+  atau geometri overflow. Tampilan 320/480 px, fractional scaling, popup warna,
+  serta perilaku screen reader sebenarnya masih belum diverifikasi.
+- Tidak build/install/push, tidak mengklaim uji GUI Arch/Hyprland selesai.

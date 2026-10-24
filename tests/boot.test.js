@@ -1232,3 +1232,28 @@ test('ketikan saat konfirmasi restore membuat hasil stale tanpa menimpa tulisan'
     assert.equal(window.document.getElementById('btn-save').disabled, false);
   } finally { release(); await restoring; pendingAsk = null; archivedRecoveries = []; await api.flushDraft(); }
 });
+
+test('statistik bukan live region; status penting tetap live dan notice identik tidak diulang', async () => {
+  const doc = window.document;
+  const footer = doc.getElementById('statusbar');
+  assert.equal(footer.hasAttribute('aria-live'), false);
+  assert.notEqual(footer.getAttribute('role'), 'status');
+  for (const id of ['sb-dirty', 'sb-draft-error', 'sb-notice', 'file-feedback']) {
+    assert.equal(doc.getElementById(id).getAttribute('role'), 'status');
+  }
+  await api.newDocument();
+  api.setMarkdown('![tertahan](https://images.example/notice.png)\n');
+  const notice = doc.getElementById('sb-notice');
+  assert.match(notice.textContent, /diblokir/);
+  let mutations = 0;
+  const observer = new window.MutationObserver((records) => { mutations += records.length; });
+  observer.observe(notice, { childList: true, characterData: true, subtree: true });
+  try {
+    api.quill.insertText(0, 'Satu ', 'user');
+    await new Promise((resolve) => setTimeout(resolve, 170));
+    api.quill.insertText(0, 'Dua ', 'user');
+    await new Promise((resolve) => setTimeout(resolve, 170));
+    assert.equal(mutations, 0);
+    assert.equal(notice.title, notice.textContent);
+  } finally { observer.disconnect(); await api.flushDraft(); }
+});
