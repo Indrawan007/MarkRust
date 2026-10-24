@@ -480,3 +480,21 @@ Batas terbuka:
   multi-file, cancel dan pemilihan tujuan Simpan setelah impor drop native.
 - Tes memakai event drop DOM dan FileReader terkontrol; transport drop OS
   Wayland/WebKitGTK dan perilaku portal belum divalidasi. Tidak build/push.
+
+## Tahap pemantapan 4 — putaran close/reentrancy
+
+- Close native kotor memiliki lock tunggal: request close kedua dicegah tanpa
+  konfirmasi kedua; lock dilepas di finally. Buka/Baru/drop/restore tidak boleh
+  mengganti dokumen selama alur close sedang berlangsung.
+- Close saat save/open/new atau dialog aplikasi aktif dicegah; pengguna dapat
+  mencoba lagi setelah operasi selesai. Tidak memaksa menutup dialog tersebut.
+- Error tak terduga saat backup/konfirmasi/save mencegah close dan memberi
+  feedback, bukan membiarkan rejected async handler tanpa keputusan eksplisit.
+- Kondisi dirty dicek kembali setelah save. Regresi memastikan ketikan selama
+  write yang tertunda mempertahankan dirty, isi baru dan jendela terbuka.
+  saveDocument sebelumnya sudah menolak sukses penuh untuk snapshot stale;
+  pemeriksaan close ini juga menjadi guard defensif.
+- **193/193 tes frontend lulus**; close duplikat hanya satu konfirmasi, lock
+  penggantian dokumen dan cleanup, serta stale save-on-close tercakup.
+- Tidak build/install/push. Tes hanya callback Tauri mock; perilaku window
+  manager/event native dan jalur quit yang melewati CloseRequested belum diuji.

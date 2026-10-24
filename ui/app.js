@@ -286,6 +286,7 @@ function boot() {
   let saveInProgress = false;
   let openInProgress = false;
   let newInProgress = false;
+  let closeInProgress = false;
 
   function getCanonicalMarkdown() {
     return currentMode === 'markdown' ? textarea.value : quillToMarkdown();
@@ -614,7 +615,7 @@ function boot() {
   }
 
   async function newDocument() {
-    if (newInProgress || openInProgress || hasOpenAppDialog()) return false;
+    if (closeInProgress || newInProgress || openInProgress || hasOpenAppDialog()) return false;
     newInProgress = true;
     fileBusy('new', true);
     const stamp = documentStamp();
@@ -652,7 +653,7 @@ function boot() {
   }
 
   async function openDocument() {
-    if (openInProgress || newInProgress || hasOpenAppDialog()) return false;
+    if (closeInProgress || openInProgress || newInProgress || hasOpenAppDialog()) return false;
     openInProgress = true;
     fileBusy('open', true);
     const stamp = documentStamp();
@@ -779,7 +780,7 @@ function boot() {
   // Drag & drop berkas .md (berjalan di webview maupun browser).
   document.addEventListener('dragover', function (e) { e.preventDefault(); });
   async function openDroppedFile(file) {
-    if (hasOpenAppDialog() || newInProgress || openInProgress) return false;
+    if (closeInProgress || hasOpenAppDialog() || newInProgress || openInProgress) return false;
     openInProgress = true;
     fileBusy('open', true);
     const stamp = documentStamp();
@@ -823,7 +824,7 @@ function boot() {
     const files = e.dataTransfer?.files;
     if (!files?.length) return;
     e.preventDefault();
-    if (hasOpenAppDialog() || newInProgress || openInProgress) return;
+    if (closeInProgress || hasOpenAppDialog() || newInProgress || openInProgress) return;
     if (files.length !== 1) {
       fileFeedback('Jatuhkan satu berkas saja. Dokumen aktif tetap dipertahankan.', 'warning');
       return;
@@ -834,29 +835,41 @@ function boot() {
   /* Konfirmasi tutup jendela native (tombol X / Alt+F4).
      Tidak memakai preventDefault() secara permanen: bila handler async
      selesai tanpa mencegah, Tauri meneruskan penutupan. Draf sudah ditulis
-     lebih dulu, jadi memilih "keluar tanpa menyimpan" tetap aman. */
+     lebih dulu; kegagalan cadangan membatalkan keluar tanpa menyimpan. */
   let closeHandlerRegistered = false;
   if (tauri && tauri.window && typeof tauri.window.getCurrentWindow === 'function') {
     try {
       const win = tauri.window.getCurrentWindow();
       if (win && typeof win.onCloseRequested === 'function') {
         win.onCloseRequested(async function (event) {
-          if (!dirty) return;
-          await flushDraft();
-          const saveFirst = await confirmSaveOnClose(tauri);
-          if (!saveFirst) {
-            // Include edits made while the prompt was open. Never imply that
-            // recovery is available when quota/private mode prevented backup.
-            const backedUp = await flushDraft();
-            if (!backedUp) {
-              event.preventDefault();
-              await showError(tauri, 'Cadangan draf gagal. Jendela tetap terbuka; simpan berkas sebelum keluar.');
-            }
+          if (closeInProgress || saveInProgress || openInProgress || newInProgress || hasOpenAppDialog()) {
+            event.preventDefault();
             return;
           }
-          const ok = await saveDocument(false);
-          if (!ok && event && typeof event.preventDefault === 'function') {
-            event.preventDefault(); // gagal menyimpan -> jangan tutup
+          if (!dirty) return;
+          closeInProgress = true;
+          try {
+            await flushDraft();
+            const saveFirst = await confirmSaveOnClose(tauri);
+            if (!saveFirst) {
+              // Include edits made while the prompt was open.
+              const backedUp = await flushDraft();
+              if (!backedUp) {
+                event.preventDefault();
+                await showError(tauri, 'Cadangan draf gagal. Jendela tetap terbuka; simpan berkas sebelum keluar.');
+              }
+              return;
+            }
+            const ok = await saveDocument(false);
+            if (!ok || dirty) {
+              event.preventDefault();
+              if (ok && dirty) fileFeedback('Masih ada perubahan baru saat menyimpan. Jendela tetap terbuka — simpan lagi sebelum keluar.', 'warning');
+            }
+          } catch (err) {
+            event.preventDefault();
+            fileFeedback('Gagal menyelesaikan proses keluar. Dokumen tetap terbuka.', 'error');
+          } finally {
+            closeInProgress = false;
           }
         });
         closeHandlerRegistered = true;
@@ -868,7 +881,7 @@ function boot() {
      awal dimuat, sehingga pengguna punya pembanding sebelum memutuskan. */
   let restoreInProgress = false;
   async function restoreDraftIfAny() {
-    if (restoreInProgress) return false;
+    if (closeInProgress || restoreInProgress) return false;
     restoreInProgress = true;
     try { return await performRestoreDraft(); }
     finally { restoreInProgress = false; }

@@ -145,3 +145,8 @@ Putaran drop berkas: pengunci bersama Buka/Baru, feedback gagal/batal/stale,
 penolakan multi-file, serta impor tanpa path native palsu dari basename.
 191 tes frontend lulus. Simpan setelah drop native meminta tujuan baru.
 Transport drag/drop Wayland nyata tetap belum diuji; tidak build/install/push.
+
+Putaran close native: satu konfirmasi untuk request berulang, pengunci
+penggantian dokumen selama close, reject close saat operasi/dialog aktif,
+penanganan exception dan pengecekan dirty setelah save. 193 tes frontend lulus.
+CloseRequested hanya diuji melalui mock; quit/WM native belum terverifikasi.

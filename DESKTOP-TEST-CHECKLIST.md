@@ -121,3 +121,11 @@ ini belum dijalankan di webview/OS nyata.
   Ctrl+S harus meminta lokasi tujuan baru; jangan menulis basename relatif.
   Verifikasi berkas asal tidak berubah sebelum pengguna memilih tujuan simpan.
   Kedua kasus ini belum diuji di WebKitGTK/Wayland; tes DOM bukan bukti OS drop.
+
+- U08: saat dokumen kotor tekan close/Alt+F4 berulang. Hanya satu konfirmasi;
+  Buka/Baru/drop/restore tidak mengganti isi selama konfirmasi close. Close saat
+  Buka/Simpan/dialog aplikasi aktif tetap membuka jendela, coba lagi sesudahnya.
+- U09: saat save-on-close lambat, ketik perubahan baru: jendela harus tetap
+  terbuka dengan dirty dan tulisan baru. Gagal/batal simpan atau gagal konfirmasi
+  tidak boleh menutup jendela. Uji native masih belum dilakukan; hasil mock
+  callback bukan bukti perilaku event WM/quit seluruh jalur.

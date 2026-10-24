@@ -1057,3 +1057,44 @@ test('drop batal/multi-file mempertahankan isi; drop native tidak memakai basena
     assert.equal(api.getPath(), '/home/u/catatan-baru.md');
   } finally { globalThis.FileReader = OriginalReader; nextAskResult = true; await api.flushDraft(); }
 });
+
+test('close berulang hanya satu konfirmasi dan menahan penggantian dokumen', async () => {
+  await api.newDocument();
+  api.quill.insertText(0, 'Tahan', 'user');
+  let release;
+  pendingAsk = new Promise((resolve) => { release = resolve; });
+  nextAskResult = false;
+  const before = asks.length;
+  let duplicatePrevented = false;
+  const closing = closeHandlers.at(-1)({ preventDefault() {} });
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    await closeHandlers.at(-1)({ preventDefault() { duplicatePrevented = true; } });
+    assert.equal(duplicatePrevented, true);
+    assert.equal(asks.length, before + 1);
+    assert.equal(await api.newDocument(), false);
+    assert.equal(await api.openDocument(), false);
+    assert.equal(await api.restoreDraftIfAny(), false);
+  } finally { release(); await closing; pendingAsk = null; nextAskResult = true; }
+  assert.equal(await api.newDocument(), true, 'close lock must release');
+});
+
+test('ketikan saat save-on-close tertunda membatalkan close meskipun write sukses', async () => {
+  await api.newDocument();
+  api.quill.insertText(0, 'Awal', 'user');
+  let release;
+  pendingWrite = new Promise((resolve) => { release = resolve; });
+  let prevented = false;
+  nextAskResult = true;
+  const closing = closeHandlers.at(-1)({ preventDefault() { prevented = true; } });
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    api.quill.insertText(0, 'Terbaru ', 'user');
+    release();
+    await closing;
+    assert.equal(prevented, true);
+    assert.equal(api.isDirty(), true);
+    assert.match(api.getMarkdown(), /Terbaru/);
+    assert.match(window.document.getElementById('file-feedback').textContent, /perubahan baru/);
+  } finally { release(); pendingWrite = null; await api.flushDraft(); }
+});
