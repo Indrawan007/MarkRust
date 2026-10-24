@@ -748,3 +748,16 @@ meminta menu atas Berkas dihapus, status diubah mengambang kanan bawah.
 - Screenshot pengguna membuktikan aplikasi terbuka/render dasar di Arch, bukan
   semua checklist clipboard/recovery/dialog/konflik sudah lulus. Revisi tampilan
   baru ini perlu rebuild dan dicek lagi pada mesin pengguna.
+
+## Status minimal — preferensi pengguna setelah screenshot kedua
+
+Panel floating hanya berisi jumlah kata/karakter dan titik simpan. Mode/nama
+berkas tidak ditampilkan di panel (metadata internal tetap ada). Titik kuning
+menandakan belum disimpan, hijau menunjukkan dokumen bersih dengan path; dokumen
+baru tanpa path tetap kuning. Label status tetap tersedia sebagai teks AT/title,
+namun tidak berupa tulisan visual. Peringatan backup/notice gambar/tombol Muat
+gambar dipindah ke area pesan terpisah, tidak dihapus.
+230/230 tes frontend lulus (npm ci dijalankan ulang karena dependency sandbox
+belum tersedia), diff check bersih. Regresi mencakup new/save/edit/save failure,
+dan memastikan panel tidak berisi nama/mode/pesan lain. Uji pixel/native revisi
+ini masih perlu dilakukan pengguna. Tidak ada perubahan Rust pada putaran ini.

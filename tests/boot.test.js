@@ -160,7 +160,7 @@ test('toolbar default pinned/tampil dan dokumen awal tidak ditandai kotor', () =
   assert.equal(api.isToolbarPinned(), true);
   assert.equal(api.isToolbarVisible(), true);
   assert.equal(api.isDirty(), false);
-  assert.equal(window.document.getElementById('sb-dirty').hidden, true);
+  assert.equal(window.document.getElementById('sb-dirty').dataset.state, 'unsaved');
 });
 
 test('ganti mode mengubah label status bar dan isi tetap round-trip', () => {
@@ -1555,4 +1555,27 @@ test('native duplicate Berkas menu is not created by the Rust entry point', () =
   assert.equal(source.includes('app.set_menu'), false);
   assert.equal(source.includes('MenuItemBuilder'), false);
   assert.equal(source.includes('markrust://menu'), false);
+});
+
+test('floating panel contains only counts and save dot, green only after save, yellow after edit/new', async () => {
+  const doc = window.document;
+  const panel = doc.getElementById('statusbar');
+  const dot = doc.getElementById('sb-dirty');
+  for (const id of ['sb-mode', 'sb-file', 'sb-draft-error', 'sb-notice', 'sb-load-images']) {
+    assert.equal(panel.contains(doc.getElementById(id)), false);
+  }
+  await api.newDocument();
+  assert.equal(dot.dataset.state, 'unsaved');
+  api.quill.insertText(0, 'Uji status', 'user');
+  assert.equal(await api.saveDocument(false), true);
+  assert.equal(dot.dataset.state, 'saved');
+  assert.equal(dot.title, 'Tersimpan');
+  api.quill.insertText(0, 'Edit ', 'user');
+  assert.equal(dot.dataset.state, 'unsaved');
+  assert.equal(dot.title, 'Belum disimpan');
+  failWrite = true;
+  try {
+    assert.equal(await api.saveDocument(false), false);
+    assert.equal(dot.dataset.state, 'unsaved');
+  } finally { failWrite = false; await api.flushDraft(); }
 });

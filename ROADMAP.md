@@ -234,3 +234,7 @@ dihapus, status menjadi panel floating kanan bawah sesuai preferensi. 229 tes
 frontend lulus. Clearance editor dinamis mempertahankan akses baris akhir.
 Perubahan mengesampingkan keputusan status strip penuh sebelumnya; uji visual
 revisi baru dan checklist native lanjut belum dilakukan.
+
+Penyederhanaan panel sesuai screenshot pengguna: hanya Words/Chars dan titik
+kuning (belum tersimpan) / hijau (bersih dengan tujuan berkas). Mode/nama disembunyikan,
+pesan penting dipisah. 230 tes frontend lulus; belum verifikasi tampilan native.

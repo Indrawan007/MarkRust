@@ -18,7 +18,7 @@ test('status groups permit wrapping and backup warning permits long-word breaks'
   const dom = setup();
   const { document, getComputedStyle } = dom.window;
   try {
-    for (const selector of ['#statusbar', '#statusbar .sb-left', '#statusbar .sb-right']) {
+    for (const selector of ['#statusbar', '#document-notices']) {
       assert.equal(getComputedStyle(document.querySelector(selector)).flexWrap, 'wrap');
     }
     assert.equal(getComputedStyle(document.getElementById('sb-draft-error')).overflowWrap, 'anywhere');

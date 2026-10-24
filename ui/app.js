@@ -299,6 +299,11 @@ function boot() {
     const name = currentPath ? basename(currentPath) : 'Tanpa Judul';
     sbFile.textContent = name;
     sbFile.title = currentPath || '';
+    const saved = !dirty && Boolean(currentPath);
+    const label = saved ? 'Tersimpan' : 'Belum disimpan';
+    sbDirty.dataset.state = saved ? 'saved' : 'unsaved';
+    sbDirty.title = label;
+    if (sbDirty.textContent !== label) sbDirty.textContent = label;
     setWindowTitle(tauri, titleFor(currentPath, dirty));
   }
 
@@ -382,13 +387,11 @@ function boot() {
     // dokumen sudah berstatus kotor.
     if (dirty) return;
     dirty = true;
-    sbDirty.hidden = false;
     refreshTitle();
   }
 
   function markClean() {
     dirty = false;
-    sbDirty.hidden = true;
     draftError.hidden = true;
     refreshTitle();
     // SENGATA tidak menghapus draf di sini: markClean() juga dipanggil saat

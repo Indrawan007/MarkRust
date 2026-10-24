@@ -630,8 +630,6 @@
     color: var(--text-muted);
     user-select: none;
   }
-  #statusbar .sb-left { display: flex; flex: 0 1 auto; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
-  #statusbar .sb-right { display: flex; flex: 0 1 auto; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px; min-width: 0; margin-left: auto; }
   #statusbar .sb-sep {
     flex: none;
     width: 3px;
@@ -648,8 +646,16 @@
     white-space: nowrap;
   }
   #sb-notice[hidden] { display: none; }
-  #sb-dirty { color: var(--text); }
-  #sb-dirty[hidden] { display: none; }
+  #sb-dirty {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    flex: none;
+    border-radius: 50%;
+    background: #e9c46a;
+    font-size: 0;
+  }
+  #sb-dirty[data-state="saved"] { background: #78c99a; }
 
   /* ====== DIALOG URL GAMBAR ======
      window.prompt tidak reliabel di WKWebView/Tauri (bisa gagal diam-diam
@@ -822,3 +828,17 @@
 /* Scroll the final lines clear of the floating panel in both editing modes. */
 .ql-editor { padding-bottom: var(--status-clearance, 80px) !important; }
 #raw-view textarea { padding-bottom: var(--status-clearance, 80px); }
+
+/* Warnings/actions are separate from the minimal floating statistics panel. */
+#document-notices {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  font-size: 12px;
+  background: var(--bg-deep);
+}
+#document-notices > :not([hidden]) { margin: 6px 0; }
+#document-notices #sb-notice { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
