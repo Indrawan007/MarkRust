@@ -1,3 +1,4 @@
+import { enhanceColorPickers } from './core/color-picker.js';
 import { registerSafeClipboard } from './core/safe-clipboard.js';
 /*
  * MarkRust — logika UI editor.
@@ -215,6 +216,7 @@ function boot() {
   if (toolbarModule) {
     if (toolbarModule.container) {
       document.getElementById('quill-toolbar').appendChild(toolbarModule.container);
+      enhanceColorPickers(toolbarModule.container);
       // Quill's icon-only controls need names beyond their SVG shapes.
       const labels = {
         bold: 'Tebal', italic: 'Miring', underline: 'Garis bawah', strike: 'Coret',

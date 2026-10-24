@@ -915,3 +915,52 @@ test('auto-hide tidak terus ditunda oleh gerakan pointer dan seleksi keyboard me
     await api.flushDraft();
   }
 });
+
+test('picker warna memiliki nama, navigasi keyboard, dan swatch tertutup keluar dari urutan Tab', async () => {
+  const doc = window.document;
+  const key = (node, name) => node.dispatchEvent(new window.KeyboardEvent('keydown', { key: name, bubbles: true, cancelable: true }));
+  for (const picker of doc.querySelectorAll('.ql-color-picker')) {
+    const label = picker.querySelector('.ql-picker-label');
+    const items = [...picker.querySelectorAll('.ql-picker-item')];
+    assert.match(label.getAttribute('aria-label'), /Warna/);
+    assert.ok(items.every((item) => item.tabIndex === -1 && item.getAttribute('aria-label')));
+    label.focus();
+    key(label, ' ');
+    assert.equal(label.getAttribute('aria-expanded'), 'true');
+    key(label, 'ArrowDown');
+    assert.equal(doc.activeElement, items[0]);
+    key(items[0], 'End');
+    assert.equal(doc.activeElement, items.at(-1));
+    key(items.at(-1), 'ArrowDown');
+    assert.equal(doc.activeElement, items[0]);
+    key(items[0], 'Escape');
+    await new Promise((resolve) => setTimeout(resolve, 15));
+    assert.equal(doc.activeElement, label);
+    assert.equal(label.getAttribute('aria-expanded'), 'false');
+    assert.ok(items.every((item) => item.tabIndex === -1));
+    key(label, 'Enter');
+    doc.getElementById('btn-pin').focus();
+    assert.equal(label.getAttribute('aria-expanded'), 'false');
+  }
+});
+
+test('Space pada swatch menerapkan warna lewat handler Quill dan menutup picker', async () => {
+  await api.newDocument();
+  api.setMode('wysiwyg');
+  api.quill.setText('Warna\n');
+  api.quill.setSelection(0, 5);
+  const doc = window.document;
+  const picker = doc.querySelector('.ql-color-picker.ql-color');
+  const label = picker.querySelector('.ql-picker-label');
+  const swatch = picker.querySelector('[data-value="#e60000"].ql-picker-item');
+  label.focus();
+  label.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true }));
+  swatch.focus();
+  swatch.dispatchEvent(new window.KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true }));
+  assert.equal(api.quill.getFormat(0, 5).color, '#e60000');
+  assert.equal(label.getAttribute('aria-expanded'), 'false');
+  assert.equal(doc.activeElement, label);
+  assert.ok([...picker.querySelectorAll('.ql-picker-item')].every((item) => item.tabIndex === -1));
+  api.quill.setSelection(0, 0);
+  await api.flushDraft();
+});

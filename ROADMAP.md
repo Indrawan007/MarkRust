@@ -128,3 +128,9 @@ Perbaikan timer auto-hide saat pointer bergerak, reveal toolbar saat seleksi
 keyboard, serta label aksesibel tombol format/input. 185 tes frontend lulus.
 Audit GUI native, dropdown warna, scaling/jendela sempit dan clipboard nyata
 belum dilakukan. Tidak membuka tahap build tanpa izin pengguna.
+
+Putaran dropdown warna: label picker/swatch, tab order saat tertutup,
+Space/panah/Home/End serta close saat fokus keluar ditambahkan tanpa modifikasi
+vendor Quill. 187 tes frontend lulus; penerapan warna pada seleksi dan Escape
+tercakup. Uji screen reader/WebKitGTK, popup di jendela sempit dan clipboard
+Wayland tetap manual/belum dilakukan. Build tetap menunggu izin.

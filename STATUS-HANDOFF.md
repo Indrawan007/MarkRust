@@ -434,3 +434,17 @@ Batas terbuka:
 - Ini audit wiring DOM/jsdom, bukan bukti tampilan/fokus di WebKitGTK nyata.
   Uji dropdown warna, narrow window, scaling, clipboard dan alur native masih
   perlu pemeriksaan manual. Tidak build/install/push atau menjalankan tes Rust.
+
+## Tahap pemantapan 4 — putaran dropdown warna
+
+- ui/core/color-picker.js melengkapi picker hasil generate Quill, tanpa mengubah
+  vendor atau mengganti handler format/backing select milik Quill.
+- Label picker dan swatch memiliki nama aksesibel/title; swatch tertutup keluar
+  dari urutan Tab. Space membuka/menutup atau memilih; panah bergerak antar
+  swatch, Home/End ke ujung. Enter/Escape tetap memakai handler bawaan Quill.
+- Fokus keluar menutup picker; Escape kembali ke label tanpa menerapkan warna.
+- **187/187 tes frontend lulus**, termasuk navigasi kedua picker, pembatalan,
+  fokus keluar, dan penerapan warna pada range terpilih lewat Space.
+- Nama warna menggunakan nilai hex (bukan nama warna terjemahan). Belum klaim
+  audit screen reader, posisi popup/jendela sempit atau WebKitGTK selesai.
+  Tidak build/install/push; tes Rust/native tetap belum dijalankan.

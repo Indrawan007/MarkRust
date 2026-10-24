@@ -97,3 +97,10 @@ ini belum dijalankan di webview/OS nyata.
 - U03: hover tombol format untuk tooltip Indonesia; cek nama input Markdown
   dan alamat gambar lewat accessibility inspector bila tersedia. Dropdown warna
   masih perlu audit keyboard/accessibility tersendiri.
+
+- U04: picker warna teks/latar: Tab ke label, Space/Enter membuka, panah dan
+  Home/End memindahkan fokus swatch. Space/Enter menerapkan ke teks terpilih;
+  Escape membatalkan dan kembali ke label. Tab keluar menutup popup dan swatch
+  tertutup tidak ikut urutan Tab. Uji juga klik mouse, posisi popup pada jendela
+  sempit/scaling, serta nama swatch hex lewat accessibility inspector bila ada.
+  Implementasi dites jsdom, checklist native ini tetap belum dijalankan.
