@@ -1579,3 +1579,92 @@ test('floating panel contains only counts and save dot, green only after save, y
     assert.equal(dot.dataset.state, 'unsaved');
   } finally { failWrite = false; await api.flushDraft(); }
 });
+
+test('identical recovery flushes share in-flight/successful writes; errors and discard invalidate cache', async () => {
+  await api.newDocument();
+  api.quill.insertText(0, 'Deduplicate', 'user');
+  let release;
+  pendingRecoveryWrite = new Promise((resolve) => { release = resolve; });
+  const before = tauriCalls.filter(([cmd]) => cmd === 'write_recovery').length;
+  try {
+    const first = api.flushDraft();
+    const second = api.flushDraft();
+    assert.equal(first, second);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(tauriCalls.filter(([cmd]) => cmd === 'write_recovery').length, before + 1);
+    release();
+    assert.equal(await first, true);
+    pendingRecoveryWrite = null;
+    for (let i = 0; i < 20; i++) assert.equal(await api.flushDraft(), true);
+    assert.equal(tauriCalls.filter(([cmd]) => cmd === 'write_recovery').length, before + 1);
+    api.quill.insertText(0, 'New ', 'user');
+    failRecovery = true;
+    assert.equal(await api.flushDraft(), false);
+    failRecovery = false;
+    assert.equal(await api.flushDraft(), true);
+    assert.equal(tauriCalls.filter(([cmd]) => cmd === 'write_recovery').length, before + 3);
+    api.discardDraft();
+    assert.equal(await api.flushDraft(), true);
+    assert.equal(tauriCalls.filter(([cmd]) => cmd === 'write_recovery').length, before + 4);
+  } finally { release(); pendingRecoveryWrite = null; failRecovery = false; await api.flushDraft(); }
+});
+
+test('typing during final exit-without-save backup blocks close until latest revision is safe', async () => {
+  await api.newDocument();
+  api.quill.insertText(0, 'Initial ', 'user');
+  let releaseAsk;
+  let releaseWrite;
+  pendingAsk = new Promise((resolve) => { releaseAsk = resolve; });
+  nextCloseResult = 'Keluar tanpa menyimpan';
+  let prevented = false;
+  const closing = closeHandlers.at(-1)({ preventDefault() { prevented = true; } });
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    api.quill.insertText(0, 'During prompt ', 'user');
+    pendingRecoveryWrite = new Promise((resolve) => { releaseWrite = resolve; });
+    releaseAsk();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    api.quill.insertText(0, 'Latest ', 'user');
+    releaseWrite();
+    await closing;
+    assert.equal(prevented, true);
+    assert.match(api.getMarkdown(), /Latest/);
+    assert.equal(api.isDirty(), true);
+    assert.doesNotMatch(JSON.parse(recoveryContents).markdown, /Latest/);
+    assert.match(window.document.getElementById('file-feedback').textContent, /ketikan baru saat pencadangan/);
+  } finally {
+    releaseAsk(); releaseWrite?.(); await closing;
+    pendingAsk = null; pendingRecoveryWrite = null; nextCloseResult = undefined;
+    assert.equal(await api.flushDraft(), true);
+    assert.match(JSON.parse(recoveryContents).markdown, /Latest/);
+  }
+});
+
+test('failed native error dialog never rejects Save or leaves busy controls stuck', async () => {
+  await api.newDocument();
+  api.quill.insertText(0, 'Keep content', 'user');
+  const original = window.__TAURI__.dialog.message;
+  window.__TAURI__.dialog.message = async () => { throw new Error('portal unavailable'); };
+  failWrite = true;
+  try {
+    assert.equal(await api.saveDocument(false), false);
+    assert.equal(api.isDirty(), true);
+    assert.equal(window.document.getElementById('btn-save').disabled, false);
+    assert.match(window.document.getElementById('file-feedback').textContent, /Gagal menyimpan/);
+    assert.match(api.getMarkdown(), /Keep content/);
+  } finally { failWrite = false; window.__TAURI__.dialog.message = original; await api.flushDraft(); }
+});
+
+test('formatting without count changes does not rewrite statistic text nodes', async () => {
+  await api.newDocument();
+  api.quill.insertText(0, 'Stable counts', 'user');
+  await new Promise((resolve) => setTimeout(resolve, 170));
+  let mutations = 0;
+  const observer = new window.MutationObserver((records) => { mutations += records.length; });
+  for (const id of ['stat-words', 'stat-chars']) observer.observe(window.document.getElementById(id), { childList: true, characterData: true, subtree: true });
+  try {
+    api.quill.formatText(0, 6, 'bold', true, 'user');
+    await new Promise((resolve) => setTimeout(resolve, 170));
+    assert.equal(mutations, 0);
+  } finally { observer.disconnect(); await api.flushDraft(); }
+});

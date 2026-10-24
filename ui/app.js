@@ -322,27 +322,37 @@ function boot() {
   let draftTimer = null;
   let draftDeadline = null;
   let draftStatusEpoch = 0;
+  let lastDraftWrite = null;
   const draftError = document.getElementById('sb-draft-error');
 
   function writeDraftNow() {
     if (!dirty) return false;
-    const epoch = ++draftStatusEpoch;
     const generation = documentGeneration;
-    const isCurrent = () => epoch === draftStatusEpoch && generation === documentGeneration && dirty;
+    const revision = editRevision;
     const draft = { markdown: getCanonicalMarkdown(), path: currentPath, savedAt: Date.now() };
-    return recoveryStore.write(draft).then(() => {
+    if (lastDraftWrite && lastDraftWrite.generation === generation && lastDraftWrite.revision === revision &&
+        lastDraftWrite.path === draft.path && lastDraftWrite.markdown === draft.markdown) {
+      return lastDraftWrite.promise;
+    }
+    const epoch = ++draftStatusEpoch;
+    const isCurrent = () => epoch === draftStatusEpoch && generation === documentGeneration && dirty;
+    const record = { generation, revision, path: draft.path, markdown: draft.markdown };
+    record.promise = recoveryStore.write(draft).then(() => {
       if (isCurrent()) {
         draftError.hidden = true;
         draftError.title = '';
       }
       return true;
     }, (err) => {
+      if (lastDraftWrite === record) lastDraftWrite = null; // A failed write must be retryable.
       if (isCurrent()) {
         draftError.hidden = false;
         draftError.title = String(err && err.message ? err.message : err);
       }
       return false;
     });
+    lastDraftWrite = record;
+    return record.promise;
   }
 
   /** Paksa tulis draf sekarang (dipakai sebelum dialog tutup / pagehide). */
@@ -365,6 +375,7 @@ function boot() {
   }
 
   function discardDraft() {
+    lastDraftWrite = null;
     const epoch = ++draftStatusEpoch;
     clearTimeout(draftDeadline);
     draftDeadline = null;
@@ -500,7 +511,10 @@ function boot() {
 
   const statusbar = document.getElementById('statusbar');
   function syncStatusClearance() {
-    document.documentElement.style.setProperty('--status-clearance', Math.max(80, statusbar.offsetHeight + 32) + 'px');
+    const clearance = Math.max(80, statusbar.offsetHeight + 32) + 'px';
+    if (document.documentElement.style.getPropertyValue('--status-clearance') !== clearance) {
+      document.documentElement.style.setProperty('--status-clearance', clearance);
+    }
   }
   if (window.ResizeObserver) new window.ResizeObserver(syncStatusClearance).observe(statusbar);
   else window.addEventListener('resize', syncStatusClearance);
@@ -874,7 +888,13 @@ function boot() {
             }
             if (decision === 'discard') {
               // Include edits made while the prompt was open.
+              const stamp = documentStamp();
               const backedUp = await flushDraft();
+              if (!documentUnchanged(stamp)) {
+                event.preventDefault();
+                fileFeedback('Ada ketikan baru saat pencadangan. Jendela tetap terbuka; coba keluar lagi setelah cadangan selesai.', 'warning');
+                return;
+              }
               if (!backedUp) {
                 event.preventDefault();
                 await showError(tauri, 'Cadangan draf gagal. Jendela tetap terbuka; simpan berkas sebelum keluar.');
@@ -1068,12 +1088,16 @@ function boot() {
     sbNotice.title = text;
   }
 
+  const statWords = document.getElementById('stat-words');
+  const statChars = document.getElementById('stat-chars');
   let statsTimer = null;
   function updateStats() {
     const canonical = getCanonicalMarkdown();
     const stats = documentStats(canonical);
-    document.getElementById('stat-words').textContent = 'Words: ' + stats.words;
-    document.getElementById('stat-chars').textContent = 'Chars: ' + stats.chars;
+    const wordsLabel = 'Words: ' + stats.words;
+    const charsLabel = 'Chars: ' + stats.chars;
+    if (statWords.textContent !== wordsLabel) statWords.textContent = wordsLabel;
+    if (statChars.textContent !== charsLabel) statChars.textContent = charsLabel;
 
     // Raw mode has no current rendered image inventory. Never report stale
     // Quill images as blocked/allowed, or offer downloads from the hidden DOM.
@@ -1135,7 +1159,10 @@ function boot() {
       }
       return revealAllowedImages(quill);
     } catch (err) {
-      if (stillCurrent()) await showError(tauri, String(err?.message || err));
+      if (stillCurrent()) {
+        fileFeedback('Gagal memuat gambar. ' + String(err?.message || err), 'error');
+        await showError(tauri, String(err?.message || err));
+      }
       return 0;
     } finally {
       imageLoadInProgress = false;

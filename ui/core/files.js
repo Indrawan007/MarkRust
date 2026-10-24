@@ -184,13 +184,19 @@ function askOrConfirm(tauri, message, title, kind) {
 }
 
 export async function showError(tauri, message) {
-  if (tauri && tauri.dialog && typeof tauri.dialog.message === 'function') {
-    await tauri.dialog.message(String(message), { title: 'MarkRust', kind: 'error' });
-    return;
-  }
-  if (typeof window !== 'undefined' && typeof window.alert === 'function') {
-    window.alert(String(message));
-  }
+  // Reporting an I/O failure must not create a second rejected event handler.
+  // Callers retain the persistent in-app feedback when native dialogs fail.
+  try {
+    if (tauri && tauri.dialog && typeof tauri.dialog.message === 'function') {
+      await tauri.dialog.message(String(message), { title: 'MarkRust', kind: 'error' });
+      return true;
+    }
+    if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+      window.alert(String(message));
+      return true;
+    }
+  } catch { /* The original operation has already failed; retain its UI state. */ }
+  return false;
 }
 
 /** Judul jendela native + <title>. Keduanya diabaikan bila tidak didukung. */

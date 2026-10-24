@@ -761,3 +761,18 @@ gambar dipindah ke area pesan terpisah, tidak dihapus.
 belum tersedia), diff check bersih. Regresi mencakup new/save/edit/save failure,
 dan memastikan panel tidak berisi nama/mode/pesan lain. Uji pixel/native revisi
 ini masih perlu dilakukan pengguna. Tidak ada perubahan Rust pada putaran ini.
+
+## Audit dan optimasi setelah UI disetujui
+
+Tidak ada fitur/tampilan baru. Audit terarah memperbaiki close-without-save
+ketika edit terjadi selama final backup, serta rejected error-reporting dialog.
+Recovery flush snapshot identik didedup (inflight dan sukses), error/discard
+menginvalidasi cache. Count DOM/stat references dan style clearance tidak ditulis
+ulang bila nilainya sama. Tidak ada perubahan Rust pada putaran ini.
+
+234/234 tes frontend lulus; empat regresi baru: dedup+retry+discard, ketikan saat
+backup final close, failed portal error reporter, MutationObserver count sama.
+Npm audit 0 vulnerabilities, node --check app/core, bash -n dan diff check lulus.
+AUDIT.md mencatat temuan, bukti, dan batas terbuka: preflight race, alias path,
+partial delete, legacy tabs dan backlog native snapshot berbeda. Tidak mengklaim
+bebas bug atau percepatan GUI terukur; perlu retest runtime Arch.

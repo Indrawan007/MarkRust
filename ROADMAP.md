@@ -238,3 +238,11 @@ revisi baru dan checklist native lanjut belum dilakukan.
 Penyederhanaan panel sesuai screenshot pengguna: hanya Words/Chars dan titik
 kuning (belum tersimpan) / hijau (bersih dengan tujuan berkas). Mode/nama disembunyikan,
 pesan penting dipisah. 230 tes frontend lulus; belum verifikasi tampilan native.
+
+### Audit/optimasi tanpa penambahan fitur
+
+Close tanpa simpan kini memeriksa edit selama final backup; kegagalan pelaporan
+error native tidak menghasilkan rejected handler tambahan. Snapshot identik
+berbagi write, DOM statistik/style clearance diupdate hanya jika berubah.
+234 tes frontend lulus dan npm audit 0 vulnerabilities. AUDIT.md memisahkan
+bukti otomatis dari batas/race yang belum ditutup serta retest native yang perlu.
