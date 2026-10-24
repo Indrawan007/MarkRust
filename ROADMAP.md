@@ -140,3 +140,8 @@ paste/drop, tampilkan arahan URL HTTPS; prioritaskan plain text saat clipboard
 juga membawa file. 189 tes frontend lulus. Ini bukan penambahan dukungan
 screenshot/attachment. Clipboard/drop Wayland asli masih perlu validasi native
 setelah build diizinkan.
+
+Putaran drop berkas: pengunci bersama Buka/Baru, feedback gagal/batal/stale,
+penolakan multi-file, serta impor tanpa path native palsu dari basename.
+191 tes frontend lulus. Simpan setelah drop native meminta tujuan baru.
+Transport drag/drop Wayland nyata tetap belum diuji; tidak build/install/push.

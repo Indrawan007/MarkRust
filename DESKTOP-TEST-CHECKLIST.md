@@ -112,3 +112,12 @@ ini belum dijalankan di webview/OS nyata.
   sanitizer. Coba clipboard provider Wayland yang dipakai sehari-hari, lalu
   segera ganti dokumen: tidak boleh ada gambar lokal muncul belakangan.
   Pengujian native belum dijalankan; tes otomatis hanya entry point uploader.
+
+- U06: drop satu .md/.markdown/.txt, coba drop kedua/Buka/Baru saat masih
+  membaca atau konfirmasi. Tidak boleh ada dua operasi penggantian bersamaan.
+  Ketik saat read/konfirmasi: hasil drop stale harus ditolak dengan feedback.
+  Uji cancel, read gagal, multi-file, lalu retry untuk memastikan lock lepas.
+- U07: drop native adalah impor salinan karena File DOM hanya memberi nama.
+  Ctrl+S harus meminta lokasi tujuan baru; jangan menulis basename relatif.
+  Verifikasi berkas asal tidak berubah sebelum pengguna memilih tujuan simpan.
+  Kedua kasus ini belum diuji di WebKitGTK/Wayland; tes DOM bukan bukti OS drop.

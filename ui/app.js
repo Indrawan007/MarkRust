@@ -778,28 +778,57 @@ function boot() {
 
   // Drag & drop berkas .md (berjalan di webview maupun browser).
   document.addEventListener('dragover', function (e) { e.preventDefault(); });
-  document.addEventListener('drop', function (e) {
-    const dt = e.dataTransfer;
-    const file = dt && dt.files && dt.files[0];
-    if (!file) return;
-    e.preventDefault();
-    if (hasOpenAppDialog() || newInProgress || openInProgress) return;
-    if (!isMarkdownFilename(file.name)) {
-      showError(tauri, 'Berkas harus berekstensi .md, .markdown, atau .txt');
-      return;
-    }
+  async function openDroppedFile(file) {
+    if (hasOpenAppDialog() || newInProgress || openInProgress) return false;
+    openInProgress = true;
+    fileBusy('open', true);
     const stamp = documentStamp();
-    readBrowserFile(file).then(async function (result) {
-      if (!documentUnchanged(stamp)) return;
-      if (dirty && !(await confirmDiscard(tauri))) return;
-      if (!documentUnchanged(stamp)) return;
+    try {
+      if (!isMarkdownFilename(file.name)) {
+        fileFeedback('Berkas harus berekstensi .md, .markdown, atau .txt.', 'warning');
+        return false;
+      }
+      fileFeedback('Membaca berkas yang dijatuhkan…');
+      const result = await readBrowserFile(file);
+      if (!documentUnchanged(stamp)) {
+        fileFeedback('Drop dibatalkan karena ada perubahan baru. Tulisanmu tetap dipertahankan.', 'warning');
+        return false;
+      }
+      if (dirty && !(await confirmDiscard(tauri))) {
+        fileFeedback('Drop dibatalkan. Dokumen aktif tetap dipertahankan.');
+        return false;
+      }
+      if (!documentUnchanged(stamp)) {
+        fileFeedback('Drop dibatalkan karena dokumen berubah saat konfirmasi.', 'warning');
+        return false;
+      }
       discardDraft();
-      currentPath = result.path;
+      // Browser File exposes only a basename, not a trustworthy native path.
+      // Native Save must ask for a destination, not write to a relative path.
+      currentPath = tauri ? null : result.path;
       applyDocument(result.contents);
       markClean();
-    }, function (err) {
-      showError(tauri, err && err.message ? err.message : String(err));
-    });
+      fileFeedback('Dibuka: ' + basename(result.path) + (tauri ? ' — pilih lokasi saat menyimpan.' : ''));
+      return true;
+    } catch (err) {
+      fileFeedback('Gagal membaca drop. Dokumen aktif tetap dipertahankan.', 'error');
+      await showError(tauri, err && err.message ? err.message : String(err));
+      return false;
+    } finally {
+      openInProgress = false;
+      fileBusy('open', false);
+    }
+  }
+  document.addEventListener('drop', function (e) {
+    const files = e.dataTransfer?.files;
+    if (!files?.length) return;
+    e.preventDefault();
+    if (hasOpenAppDialog() || newInProgress || openInProgress) return;
+    if (files.length !== 1) {
+      fileFeedback('Jatuhkan satu berkas saja. Dokumen aktif tetap dipertahankan.', 'warning');
+      return;
+    }
+    void openDroppedFile(files[0]);
   });
 
   /* Konfirmasi tutup jendela native (tombol X / Alt+F4).

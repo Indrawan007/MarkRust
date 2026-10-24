@@ -996,3 +996,64 @@ test('paste screenshot dan upload drop tidak membaca berkas atau menyisipkan bas
     await api.flushDraft();
   }
 });
+
+function dispatchFileDrop(files) {
+  const event = new window.Event('drop', { bubbles: true, cancelable: true });
+  Object.defineProperty(event, 'dataTransfer', { value: { files } });
+  window.document.dispatchEvent(event);
+}
+
+test('drop mengunci Buka/Baru, menolak hasil stale, dan pulih setelah read gagal', async () => {
+  await api.newDocument();
+  const OriginalReader = globalThis.FileReader;
+  const readers = [];
+  globalThis.FileReader = class { readAsText() { readers.push(this); } };
+  const file = { name: 'drop.md' };
+  try {
+    dispatchFileDrop([file]);
+    dispatchFileDrop([file]);
+    assert.equal(readers.length, 1);
+    assert.equal(await api.openDocument(), false);
+    assert.equal(await api.newDocument(), false);
+    assert.equal(window.document.getElementById('btn-open').disabled, true);
+    api.quill.insertText(0, 'Tetap', 'user');
+    readers[0].result = '# Stale';
+    readers[0].onload();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.match(api.getMarkdown(), /Tetap/);
+    assert.equal(window.document.getElementById('btn-open').disabled, false);
+    dispatchFileDrop([file]);
+    readers[1].onerror();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.match(window.document.getElementById('file-feedback').textContent, /Gagal membaca/);
+    assert.match(api.getMarkdown(), /Tetap/);
+    assert.equal(window.document.getElementById('btn-open').disabled, false);
+  } finally { globalThis.FileReader = OriginalReader; await api.flushDraft(); }
+});
+
+test('drop batal/multi-file mempertahankan isi; drop native tidak memakai basename sebagai path simpan', async () => {
+  await api.newDocument();
+  api.quill.insertText(0, 'Awal', 'user');
+  const OriginalReader = globalThis.FileReader;
+  let reader;
+  globalThis.FileReader = class { readAsText() { reader = this; } };
+  const file = { name: 'dropped.md' };
+  try {
+    dispatchFileDrop([file, file]);
+    assert.equal(reader, undefined);
+    assert.match(window.document.getElementById('file-feedback').textContent, /satu berkas/);
+    nextAskResult = false;
+    dispatchFileDrop([file]);
+    reader.result = '# Imported'; reader.onload();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.match(api.getMarkdown(), /Awal/);
+    nextAskResult = true;
+    dispatchFileDrop([file]);
+    reader.result = '# Imported'; reader.onload();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.match(api.getMarkdown(), /Imported/);
+    assert.equal(api.getPath(), null);
+    assert.equal(await api.saveDocument(false), true);
+    assert.equal(api.getPath(), '/home/u/catatan-baru.md');
+  } finally { globalThis.FileReader = OriginalReader; nextAskResult = true; await api.flushDraft(); }
+});

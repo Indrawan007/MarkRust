@@ -464,3 +464,19 @@ Batas terbuka:
 - **189/189 tes frontend lulus**; tes screenshot, upload entry point yang juga
   dipakai drop, tidak ada FileReader, seleksi tetap dan teks+file. Drop event
   nyata/clipboard provider Wayland tetap belum diuji. Tidak build/install/push.
+
+## Tahap pemantapan 4 — putaran drop berkas
+
+- Drop kini memakai openInProgress/busy Buka hingga pembacaan dan konfirmasi
+  selesai, sehingga drop/Buka/Baru tidak bersaing. finally melepas lock pada
+  sukses, pembatalan, stale result dan error.
+- Multi-file ditolak eksplisit; jenis tidak sesuai, cancel dan hasil stale
+  memiliki feedback. Ketikan saat read/konfirmasi tidak ditimpa.
+- Browser File hanya menyediakan basename, bukan path native tepercaya.
+  Hasil drop pada Tauri kini menjadi dokumen tanpa path: Simpan meminta lokasi
+  baru, tidak memakai basename sebagai path relatif untuk write_document.
+  Ini impor salinan, bukan janji menimpa berkas yang dijatuhkan.
+- **191/191 tes frontend lulus**, termasuk lock, stale read, read error,
+  multi-file, cancel dan pemilihan tujuan Simpan setelah impor drop native.
+- Tes memakai event drop DOM dan FileReader terkontrol; transport drop OS
+  Wayland/WebKitGTK dan perilaku portal belum divalidasi. Tidak build/push.
