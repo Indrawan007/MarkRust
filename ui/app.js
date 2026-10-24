@@ -125,7 +125,7 @@ function boot() {
   const imageError = document.getElementById('image-error');
 
   function imageHandler() {
-    if (hasOpenAppDialog()) return;
+    if (currentMode !== 'wysiwyg' || closeInProgress || hasOpenAppDialog()) return;
     const range = quill.getSelection(true);
     pendingImageRange = range ? { index: range.index, length: range.length } : null;
     pendingImageStamp = documentStamp();
@@ -553,6 +553,7 @@ function boot() {
     }
 
     currentMode = mode;
+    document.getElementById('quill-toolbar').hidden = mode !== 'wysiwyg';
     btnWysiwyg.classList.toggle('active', mode === 'wysiwyg');
     btnMarkdown.classList.toggle('active', mode === 'markdown');
     btnWysiwyg.setAttribute('aria-pressed', String(mode === 'wysiwyg'));
@@ -949,6 +950,16 @@ function boot() {
     document.getElementById('stat-words').textContent = 'Words: ' + stats.words;
     document.getElementById('stat-chars').textContent = 'Chars: ' + stats.chars;
 
+    // Raw mode has no current rendered image inventory. Never report stale
+    // Quill images as blocked/allowed, or offer downloads from the hidden DOM.
+    if (currentMode === 'markdown') {
+      btnLoadImages.hidden = true;
+      delete btnLoadImages.dataset.count;
+      sbNotice.hidden = remoteImageCount(canonical) === 0;
+      sbNotice.textContent = sbNotice.hidden ? '' : 'Beralih ke WYSIWYG untuk meninjau dan memuat gambar.';
+      return;
+    }
+
     // Hitung dari DOM, bukan hanya dari teks: yang penting adalah berapa
     // gambar yang BENAR-BENAR masih tertahan, bukan sekadar jumlah URL.
     const held = quill.root.querySelectorAll('img[data-mr-src]');
@@ -976,8 +987,9 @@ function boot() {
 
   let imageLoadInProgress = false;
   async function loadImageUrls(urls) {
-    if (imageLoadInProgress) return 0;
-    const stamp = documentGeneration;
+    if (imageLoadInProgress || currentMode !== 'wysiwyg' || closeInProgress) return 0;
+    const stamp = documentStamp();
+    const stillCurrent = () => documentUnchanged(stamp) && currentMode === 'wysiwyg' && !closeInProgress;
     imageLoadInProgress = true;
     btnLoadImages.disabled = true;
     try {
@@ -985,8 +997,9 @@ function boot() {
       if (unique.length > 20) throw new Error('Maksimum 20 URL gambar per pemuatan');
       if (tauri) {
         for (const url of unique) {
+          if (!stillCurrent()) return 0;
           const source = await tauri.core.invoke('download_image', { url });
-          if (stamp !== documentGeneration) return 0;
+          if (!stillCurrent()) return 0;
           setImageDisplaySource(url, source);
           revealAllowedImages(quill); // Keep successful items visible if a later download fails.
         }
@@ -995,7 +1008,7 @@ function boot() {
       }
       return revealAllowedImages(quill);
     } catch (err) {
-      if (stamp === documentGeneration) await showError(tauri, String(err?.message || err));
+      if (stillCurrent()) await showError(tauri, String(err?.message || err));
       return 0;
     } finally {
       imageLoadInProgress = false;
@@ -1004,6 +1017,7 @@ function boot() {
     }
   }
   async function loadRemoteImages() {
+    if (currentMode !== 'wysiwyg' || closeInProgress || hasOpenAppDialog()) return 0;
     const urls = Array.from(quill.root.querySelectorAll('img[data-mr-src]'))
       .map((node) => node.getAttribute('data-mr-src')).filter((url) => !isRemoteImageAllowed(url));
     return loadImageUrls(urls);

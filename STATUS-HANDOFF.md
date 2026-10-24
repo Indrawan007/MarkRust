@@ -513,3 +513,19 @@ Batas terbuka:
 - **196/196 tes frontend lulus**: filter, limit/batas persis, abort, retry read,
   dan drop terlalu besar/abort mempertahankan isi/dirty serta melepas busy.
   Tidak build/install/push. FileReader/portal native masih belum diuji nyata.
+
+## Tahap pemantapan 4 — kontrol visual/gambar lintas mode
+
+- Mode Markdown menyembunyikan toolbar format Quill (termasuk dari tab order),
+  sementara aksi berkas/mode/pin tetap tersedia. Handler gambar menolak aksi
+  langsung/stale di mode raw dan selama close.
+- Status raw tidak lagi mengklaim gambar DOM visual lama diblokir/diizinkan;
+  bila ada gambar dalam Markdown kanonik, arahan meninjau di WYSIWYG ditampilkan.
+  Muat gambar tidak tersedia/berjalan di raw, dialog aktif atau proses close.
+- Batch native memeriksa generation+revision, mode dan close sebelum request
+  berikutnya dan sebelum menerapkan hasil; edit/pindah raw membuang hasil stale
+  serta menghentikan sisa batch. Request native yang sudah dikirim tidak
+  dibatalkan; gambar yang berhasil diterapkan sebelum edit tidak dihapus.
+- **198/198 tes frontend lulus**, termasuk raw edit vs DOM lama, tombol/handler
+  mode visual, unduhan tertunda dan penghentian URL berikutnya. Tidak ada
+  perubahan Rust/build/install/push; rendering/fokus WebKitGTK belum diuji.

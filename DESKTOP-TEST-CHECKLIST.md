@@ -134,3 +134,11 @@ ini belum dijalankan di webview/OS nyata.
   melepas busy Buka dan memungkinkan retry. Tes batas tepat 10 MiB tidak berarti
   parsing dokumen besar pasti lancar: ukur responsivitas terpisah. Pastikan
   filter chooser menampilkan .md/.markdown/.txt/.mdown/.mkd. Belum diuji native.
+
+- U11: pindah Markdown: toolbar format visual tidak tampil/masuk Tab; aksi
+  berkas/mode/pin tetap ada. Edit/hapus URL gambar di raw: Muat gambar tidak
+  memakai URL lama. Kembali WYSIWYG, tinjau gambar baru lalu muat eksplisit.
+- U12: mulai batch gambar, lalu pindah raw/edit sebelum hasil kembali: hasil
+  stale tidak diterapkan dan URL sisa tidak diunduh. Request yang sudah terkirim
+  dapat tetap selesai di backend. Retry pada WYSIWYG harus memungkinkan.
+  Belum diuji native; tes mock bukan bukti pembatalan jaringan.

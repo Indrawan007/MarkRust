@@ -154,3 +154,8 @@ CloseRequested hanya diuji melalui mock; quit/WM native belum terverifikasi.
 Putaran read berkas: limit File DOM 10 MiB selaras native, penanganan abort agar
 busy tidak menggantung, error picker tidak lagi dianggap cancel, serta filter
 semua ekstensi didukung. 196 tes frontend lulus; belum uji GUI native/build.
+
+Putaran lintas mode/gambar: sembunyikan kontrol format visual di Markdown,
+cegah download dari DOM Quill stale, beri status raw yang sesuai, dan abaikan
+hasil batch stale setelah edit/pergantian mode. 198 tes frontend lulus.
+Request yang sudah berjalan bukan dibatalkan; native/WebKitGTK belum diverifikasi.

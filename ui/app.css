@@ -775,3 +775,6 @@
 #file-feedback[hidden] { display: none; }
 #file-feedback[data-kind="warning"] { color: #f2b66d; }
 #file-feedback[data-kind="error"] { color: #f28b82; }
+
+/* Raw Markdown has no visual-formatting target. Hidden must beat flex rules. */
+#quill-toolbar[hidden] { display: none; }

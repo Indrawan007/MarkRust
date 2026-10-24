@@ -29,6 +29,7 @@ const asks = [];
 const closeHandlers = [];
 const destroyed = [];
 let nextAskResult = true;
+let pendingDownload = null;
 let failWrite = false;
 let pendingWrite = null;
 let pendingRead = null;
@@ -42,7 +43,10 @@ window.__TAURI__ = {
   core: {
     invoke: async (cmd, args) => {
       tauriCalls.push([cmd, args]);
-      if (cmd === 'download_image') return 'data:image/png;base64,AAAA';
+      if (cmd === 'download_image') {
+        if (pendingDownload) await pendingDownload;
+        return 'data:image/png;base64,AAAA';
+      }
       if (cmd === 'write_recovery') {
         if (failRecovery) throw new Error('disk full');
         recoveryContents = args.contents;
@@ -1118,4 +1122,50 @@ test('drop terlalu besar atau read abort tidak mengubah isi dan melepas busy', a
     assert.equal(window.document.getElementById('btn-open').disabled, false);
     assert.match(window.document.getElementById('file-feedback').textContent, /Gagal membaca/);
   } finally { globalThis.FileReader = original; await api.flushDraft(); }
+});
+
+test('Markdown tidak menawarkan format visual atau unduhan dari DOM Quill lama', async () => {
+  await api.newDocument();
+  api.setMarkdown('![lama](https://images.example/stale-mode.png)\n');
+  api.setMode('markdown');
+  const doc = window.document;
+  const raw = doc.getElementById('raw-textarea');
+  raw.value = '![baru](https://images.example/new-mode.png)\n';
+  raw.dispatchEvent(new window.Event('input', { bubbles: true }));
+  const before = tauriCalls.filter(([cmd]) => cmd === 'download_image').length;
+  assert.equal(doc.getElementById('quill-toolbar').hidden, true);
+  assert.equal(doc.getElementById('sb-load-images').hidden, true);
+  assert.equal(await api.loadRemoteImages(), 0);
+  api.quill.getModule('toolbar').handlers.image();
+  assert.equal(doc.getElementById('image-dialog').open, false);
+  assert.equal(tauriCalls.filter(([cmd]) => cmd === 'download_image').length, before);
+  api.setMode('wysiwyg');
+  assert.equal(doc.getElementById('quill-toolbar').hidden, false);
+  assert.equal(doc.getElementById('sb-load-images').hidden, false);
+  await api.loadRemoteImages();
+  const urls = tauriCalls.slice().filter(([cmd]) => cmd === 'download_image').slice(before).map(([, args]) => args.url);
+  assert.deepEqual(urls, ['https://images.example/new-mode.png']);
+  await api.flushDraft();
+});
+
+test('pindah mode dan edit saat unduhan tertunda membuang hasil dan menghentikan sisa batch', async () => {
+  await api.newDocument();
+  api.setMarkdown('![satu](https://images.example/one-stale.png)\n\n![dua](https://images.example/two-stale.png)\n');
+  let release;
+  pendingDownload = new Promise((resolve) => { release = resolve; });
+  const before = tauriCalls.filter(([cmd]) => cmd === 'download_image').length;
+  const loading = api.loadRemoteImages();
+  try {
+    api.setMode('markdown');
+    const raw = window.document.getElementById('raw-textarea');
+    raw.value = 'Pengganti\n';
+    raw.dispatchEvent(new window.Event('input', { bubbles: true }));
+    release();
+    assert.equal(await loading, 0);
+    assert.equal(tauriCalls.filter(([cmd]) => cmd === 'download_image').length, before + 1);
+    assert.equal(api.getMarkdown(), 'Pengganti\n');
+    assert.equal(window.document.getElementById('sb-load-images').disabled, false);
+    api.setMode('wysiwyg');
+    assert.equal(api.quill.root.querySelector('img'), null);
+  } finally { release(); pendingDownload = null; await loading; await api.flushDraft(); }
 });
