@@ -196,3 +196,11 @@ ini belum dijalankan di webview/OS nyata.
   persis ditolak; alias/symlink bukan cakupan guard frontend. Bandingkan Markdown
   hasil ekspor dan sumber; metadata/semua versi/cache gambar tidak termasuk.
   Browser hanya memulai download. Portal native dan hasil unduhan nyata BELUM DIUJI.
+
+- U22: cleanup arsip valid/rusak: cancel tidak menghapus, confirm hanya target.
+  Native menolak own/locked; browser menolak tab aktif melalui Web Locks dan
+  bytes berubah saat konfirmasi. Tanpa Web Locks tombol pilihan cleanup disabled.
+  Arsip lainnya dan Markdown asli tetap; failure melepas busy. Delete native
+  multi-file bisa parsial bila I/O gagal. TEST-SESSION.md berisi runbook prioritas.
+  Native dan pengujian dua browser tab sebenarnya BELUM DIUJI; tes otomatis
+  memakai IPC/Web Locks mock, bukan bukti OS/runtime.

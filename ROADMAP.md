@@ -209,3 +209,14 @@ Ekspor cadangan read-only ditambahkan sebagai langkah sebelum cleanup: toolbar
 API yang sudah ada, browser download. 221 tes frontend lulus. Arsip rusak dan
 versi historis/raw belum bisa diekspor; penghapusan/quota tetap tersisa. Guard
 tujuan aktif berbasis string, bukan deteksi alias inode. Tanpa build/install/push.
+
+### Putaran penutup sebelum uji nyata
+
+Cleanup arsip eksplisit tersedia (pilih→konfirmasi; corrupt boleh dihapus),
+native recheck lock/own/session ID dan browser Web Locks + expected raw bytes.
+Tanpa Web Locks cleanup browser dinonaktifkan. Native menghapus snapshot/temp,
+bukan lock inode atau berkas Markdown asal; multi-file deletion bukan transaksi.
+226 tes frontend lulus. Tes Rust cleanup baru belum dijalankan/kompilasi karena
+doctor mendeteksi toolchain/library build absen. Preview browser port 8080 dan
+TEST-SESSION.md disiapkan. Tidak install/push/CI. Tahap berikutnya uji nyata,
+bukan penambahan fitur; konflik save tetap preflight, bukan CAS atomik.

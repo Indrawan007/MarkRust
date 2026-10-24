@@ -58,3 +58,10 @@ test('select returns an imported snapshot without clearing the source archive', 
   assert.deepEqual(commands, ['select_recovery', 'write_recovery', 'clear_recovery']);
   assert.equal(JSON.parse(source).markdown, 'archive');
 });
+
+test('archive deletion is serialized and sends only the selected ID', async () => {
+  const calls = [];
+  const store = createDiskRecovery({ core: { invoke: async (cmd, args) => { calls.push([cmd, args]); } } });
+  await store.remove('session-old');
+  assert.deepEqual(calls, [['delete_recovery', { id: 'session-old' }]]);
+});

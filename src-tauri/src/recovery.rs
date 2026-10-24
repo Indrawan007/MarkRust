@@ -186,6 +186,7 @@ pub fn list_recoveries(app: tauri::AppHandle) -> Result<String, String> {
     if base.join("recovery-v1").is_dir() { dirs.push(base.join("recovery-v1")); }
     let mut rows = Vec::new();
     for dir in dirs {
+        if &dir == own { continue; } // Never offer the active workspace for archive actions.
         let held;
         if &dir != own {
             held = lock_session(&dir)?;
@@ -222,6 +223,45 @@ fn read_candidate(path: &Path, own: &Path) -> Result<String, String> {
         Some(lock_session(path)?.ok_or("Recovery sedang dipakai instance lain")?)
     };
     read(path)?.ok_or("Recovery sudah tidak tersedia".into())
+}
+
+// Delete only recognized regular snapshot/temp files while holding the archive
+// lock. Never recursively delete a webview-selected directory or active session.
+fn delete_candidate(path: &Path, own: &Path) -> Result<(), String> {
+    if path == own { return Err("Sesi aktif tidak boleh dihapus".into()); }
+    if !fs::symlink_metadata(path).map_err(|e| e.to_string())?.is_dir() {
+        return Err("Direktori recovery tidak valid".into());
+    }
+    let _guard = lock_session(path)?.ok_or("Recovery sedang dipakai instance lain")?;
+    let mut files = Vec::new();
+    for entry in fs::read_dir(path).map_err(|e| e.to_string())? {
+        let file = entry.map_err(|e| e.to_string())?.path();
+        let name = file.file_name().and_then(|n| n.to_str()).ok_or("Nama recovery tidak valid")?;
+        let meta = fs::symlink_metadata(&file).map_err(|e| e.to_string())?;
+        if !meta.is_file() { return Err("Cleanup ditolak: ada symlink/subdirektori".into()); }
+        if name == "session.lock" { continue; }
+        if !file.extension().is_some_and(|e| e == "json" || e == "tmp") {
+            return Err("Cleanup ditolak: berkas tidak dikenal".into());
+        }
+        files.push(file);
+    }
+    files.sort();
+    for file in files {
+        fs::remove_file(file).map_err(|e| format!("Cleanup belum selesai; sebagian berkas mungkin terhapus: {e}"))?;
+    }
+    // Keep the lock inode/directory: removing a held lock permits split locks.
+    Ok(())
+}
+#[tauri::command]
+pub fn delete_recovery(app: tauri::AppHandle, id: String) -> Result<(), String> {
+    with_session(&app, |_| Ok(()))?;
+    let state = SESSION.lock().map_err(|e| e.to_string())?;
+    let base = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    // Coordinate deletion with global quota scans/writes in other processes.
+    let budget = fs::OpenOptions::new().read(true).write(true).create(true)
+        .truncate(false).open(base.join("recovery-budget.lock")).map_err(|e| e.to_string())?;
+    budget.lock_exclusive().map_err(|e| e.to_string())?;
+    delete_candidate(&candidate_path(&base, &id)?, &state.as_ref().unwrap().dir)
 }
 
 #[cfg(test)]
@@ -356,4 +396,45 @@ mod tests {
         fs::remove_dir_all(root).unwrap();
     }
 
+}
+
+#[cfg(test)]
+mod cleanup_tests {
+    use super::*;
+    #[test]
+    fn archive_cleanup_rejects_active_and_locked_and_keeps_siblings() {
+        let root = std::env::temp_dir().join(format!("markrust-cleanup-{}", SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()));
+        let own = fresh_session(&root).unwrap();
+        let archive = fresh_session(&root).unwrap();
+        let dir = archive.dir.clone();
+        write(&dir, r#"{"version":1,"markdown":"archive"}"#).unwrap();
+        write(&own.dir, r#"{"version":1,"markdown":"own"}"#).unwrap();
+        assert!(delete_candidate(&own.dir, &own.dir).is_err());
+        assert!(delete_candidate(&dir, &own.dir).is_err());
+        drop(archive);
+        fs::write(dir.join("corrupt.json"), "broken").unwrap();
+        fs::write(dir.join("leftover.tmp"), "temporary").unwrap();
+        delete_candidate(&dir, &own.dir).unwrap();
+        assert!(snapshots(&dir).unwrap().is_empty());
+        assert!(dir.join("session.lock").exists());
+        assert!(read(&own.dir).unwrap().is_some());
+        drop(own);
+        fs::remove_dir_all(root).unwrap();
+    }
+    #[cfg(unix)]
+    #[test]
+    fn symlink_rejection_precedes_any_snapshot_deletion() {
+        use std::os::unix::fs::symlink;
+        let root = std::env::temp_dir().join(format!("markrust-cleanup-link-{}", SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()));
+        let own = fresh_session(&root).unwrap();
+        let archive = fresh_session(&root).unwrap();
+        let dir = archive.dir.clone();
+        write(&dir, r#"{"version":1,"markdown":"keep"}"#).unwrap();
+        drop(archive);
+        symlink(&own.dir, dir.join("unexpected")).unwrap();
+        assert!(delete_candidate(&dir, &own.dir).is_err());
+        assert!(read(&dir).unwrap().is_some());
+        drop(own);
+        fs::remove_dir_all(root).unwrap();
+    }
 }

@@ -30,6 +30,8 @@ const closeHandlers = [];
 const destroyed = [];
 let nextAskResult = true;
 let nextCloseResult = undefined;
+let nextDeleteResult = 'Batal';
+let failArchiveDelete = false;
 let pendingDownload = null;
 let failWrite = false;
 let pendingWrite = null;
@@ -59,6 +61,11 @@ window.__TAURI__ = {
         return;
       }
       if (cmd === 'list_recoveries') return JSON.stringify(archivedRecoveries.map(({ raw, ...row }) => row));
+      if (cmd === 'delete_recovery') {
+        if (failArchiveDelete) throw new Error('archive locked');
+        archivedRecoveries = archivedRecoveries.filter((row) => row.id !== args.id);
+        return;
+      }
       if (cmd === 'select_recovery') {
         if (failCandidateRead) throw new Error('recovery unavailable');
         return archivedRecoveries.find((row) => row.id === args.id)?.raw || null;
@@ -84,6 +91,7 @@ window.__TAURI__ = {
       asks.push(msg);
       if (failAsk) throw new Error('dialog unavailable');
       if (pendingAsk) await pendingAsk;
+      if (options.buttons.ok) return nextDeleteResult;
       return nextCloseResult !== undefined ? nextCloseResult
         : nextAskResult ? options.buttons.yes : options.buttons.no;
     }
@@ -1482,4 +1490,53 @@ test('export cancel, read/write failure and active-path rejection retain editor 
     mock.restore(); archivedRecoveries = []; failCandidateRead = false; failWrite = false;
     window.__TAURI__.dialog.save = save; await api.flushDraft();
   }
+});
+
+test('archive cleanup requires explicit confirm, retains dirty editor, and handles locked archives', async () => {
+  await api.newDocument();
+  api.quill.insertText(0, 'Tetap di editor', 'user');
+  const before = api.getMarkdown();
+  const raw = 'broken but retained';
+  archivedRecoveries = [{ id: 'session-cleanup', corrupt: true, raw }];
+  const mock = mockRecoveryDialog();
+  try {
+    for (const outcome of ['escape', 'Batal', 'locked', 'Hapus permanen']) {
+      nextDeleteResult = outcome === 'locked' ? 'Hapus permanen' : outcome;
+      failArchiveDelete = outcome === 'locked';
+      const deleting = api.deleteRecoveryArchive();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      assert.equal(await api.newDocument(), false);
+      if (outcome === 'escape') mock.dialog.dispatchEvent(new window.Event('cancel', { cancelable: true }));
+      else {
+        const row = window.document.querySelector('#recovery-list button');
+        assert.equal(row.disabled, false, 'corrupt archive can be explicitly cleaned');
+        row.click();
+      }
+      assert.equal(await deleting, outcome === 'Hapus permanen');
+      assert.equal(archivedRecoveries.length, outcome === 'Hapus permanen' ? 0 : 1);
+      assert.equal(api.getMarkdown(), before);
+      assert.equal(api.isDirty(), true);
+      assert.equal(api.getPath(), null);
+      assert.equal(window.document.getElementById('btn-cleanup').disabled, false);
+    }
+  } finally { mock.restore(); archivedRecoveries = []; failArchiveDelete = false; nextDeleteResult = 'Batal'; await api.flushDraft(); }
+});
+
+test('cleanup can explicitly remove corrupt legacy without clearing native workspace', async () => {
+  await api.newDocument();
+  api.quill.insertText(0, 'Workspace native', 'user');
+  await api.flushDraft();
+  const own = recoveryContents;
+  window.localStorage.setItem(api.draftKey, '{corrupt legacy');
+  const mock = mockRecoveryDialog();
+  nextDeleteResult = 'Hapus permanen';
+  try {
+    const deleting = api.deleteRecoveryArchive();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    window.document.querySelector('#recovery-list button').click();
+    assert.equal(await deleting, true);
+    assert.equal(window.localStorage.getItem(api.draftKey), null);
+    assert.equal(recoveryContents, own);
+    assert.equal(api.isDirty(), true);
+  } finally { mock.restore(); nextDeleteResult = 'Batal'; window.localStorage.removeItem(api.draftKey); await api.flushDraft(); }
 });

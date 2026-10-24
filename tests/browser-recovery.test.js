@@ -63,3 +63,53 @@ test('quota, blocked storage and session ID collision fail without destroying or
     await assert.rejects(quota.write({ markdown: 'new' }), /quota/);
   } finally { dom.window.close(); }
 });
+
+function fakeLocks() {
+  const held = new Map();
+  return {
+    async query() { return { held: [...held.keys()].map((name) => ({ name })) }; },
+    async request(name, _options, callback) {
+      if (held.has(name)) return callback(null);
+      held.set(name, true);
+      try { return await callback({ name }); } finally { held.delete(name); }
+    }
+  };
+}
+
+test('cleanup refuses live sessions and changed archives, deletes only selected inactive bytes', async () => {
+  const { dom, storage } = setup();
+  const locks = fakeLocks();
+  const active = createBrowserRecovery(storage, 'active', locks);
+  const cleaner = createBrowserRecovery(storage, 'cleaner', locks);
+  try {
+    await active.write({ markdown: 'keep active' });
+    const key = BROWSER_SESSION_PREFIX + 'active';
+    const raw = storage.getItem(key);
+    assert.equal((await cleaner.list()).find((row) => row.id === key).canDelete, false);
+    await assert.rejects(cleaner.remove(key, raw), /masih aktif/);
+    await assert.rejects(active.remove(key, raw), /tidak boleh dihapus/);
+    active.dispose();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal((await cleaner.list()).find((row) => row.id === key).canDelete, true);
+    storage.setItem(key, 'changed');
+    await assert.rejects(cleaner.remove(key, raw), /berubah/);
+    assert.equal(storage.getItem(key), 'changed');
+    storage.setItem(DRAFT_KEY, 'corrupt legacy');
+    await cleaner.remove(DRAFT_KEY, await cleaner.inspect(DRAFT_KEY));
+    assert.equal(storage.getItem(DRAFT_KEY), null);
+    assert.equal(storage.getItem(key), 'changed');
+    await cleaner.remove(key, 'changed');
+    assert.equal(storage.getItem(key), null);
+  } finally { active.dispose(); cleaner.dispose(); dom.window.close(); }
+});
+
+test('browser without Web Locks cannot delete archive sessions', async () => {
+  const { dom, storage } = setup();
+  try {
+    storage.setItem(BROWSER_SESSION_PREFIX + 'old', 'corrupt');
+    const cleaner = createBrowserRecovery(storage, 'cleaner', null);
+    assert.equal((await cleaner.list())[0].canDelete, false);
+    await assert.rejects(cleaner.remove(BROWSER_SESSION_PREFIX + 'old', 'corrupt'), /Web Locks/);
+    assert.equal(storage.getItem(BROWSER_SESSION_PREFIX + 'old'), 'corrupt');
+  } finally { dom.window.close(); }
+});

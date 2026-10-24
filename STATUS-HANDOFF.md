@@ -681,3 +681,35 @@ Batas terbuka:
 - Penghapusan arsip dan quota management masih belum diimplementasikan. Ekspor
   browser hanya menyatakan download dimulai, tidak membuktikan tersimpan. Uji
   portal/native/Wayland nyata tetap belum dilakukan.
+
+## Cleanup eksplisit dan persiapan sesi uji
+
+Pengguna meminta selesaikan pekerjaan tersisa lalu tes. Cleanup ditambahkan:
+- Tombol Hapus arsip terpisah dari Ekspor. Pilih satu arsip, lalu konfirmasi
+  Hapus permanen/Batal. Tidak ada auto-prune arsip lintas sesi, restore, atau
+  penghapusan berkas Markdown asli. Dokumen dirty boleh tetap diketik.
+- Native delete_recovery menerima ID terbatas; menolak workspace sendiri dan
+  sesi terkunci, symlink/subdirektori/berkas asing. Menghapus hanya regular
+  .json/.tmp di target; lock inode/direktori kosong sengaja dipertahankan.
+  Global budget lock mengoordinasikan dengan quota scan/write. Own workspace
+  tidak lagi ditawarkan di list arsip native. Delete multi-file tidak atomik;
+  error dapat meninggalkan sebagian snapshot sudah terhapus, UI menyebutkannya.
+- Browser menahan Web Lock sepanjang lifetime workspace, termasuk bfcache.
+  Cleanup mengambil lock ifAvailable, menolak sesi aktif, ID sendiri dan bytes
+  yang berubah sesudah pemilihan. Tanpa Web Locks request/query, cleanup browser
+  dinonaktifkan. Legacy bisa dibersihkan eksplisit, termasuk payload rusak.
+  Tab/binary versi lama yang tidak ikut protokol lock tidak terjamin.
+- Rust tests ditambahkan untuk own/locked/sibling/corrupt/temp dan symlink
+  rejection, **BELUM DIKOMPILASI/DIJALANKAN**. Kontrak delete_recovery baru
+  memerlukan frontend/backend yang cocok; jangan uji terhadap binary lama.
+
+Verifikasi aktual: **226/226 frontend tests lulus**, bash -n dan diff --check
+bersih. Doctor exit 1: cargo/rustc/pkg-config tidak ada, Debian tanpa Wayland.
+Tidak dapat build/test native di sandbox ini. Tidak install/push/CI.
+
+Preview browser aktif pada port 8080 (`python3 -m http.server --directory ui`),
+process markrust-uji-browser-bukan-nativ-b20def7f; index/app/modul memberi HTTP 200.
+Ini bukan pengujian interaksi visual/native. TEST-SESSION.md menyediakan urutan
+uji browser dan native beserta baseline dan batasnya. CAS konflik eksternal,
+GUI WebKitGTK/Hyprland, persistensi nyata dan portal tetap belum terverifikasi;
+preflight konflik tidak diiklankan sebagai atomik.

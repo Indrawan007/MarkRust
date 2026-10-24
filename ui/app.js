@@ -902,7 +902,7 @@ function boot() {
   async function restoreDraftIfAny() {
     if (closeInProgress || restoreInProgress || openInProgress || newInProgress || saveInProgress || hasOpenAppDialog() || dirty) return false;
     restoreInProgress = true;
-    for (const action of ['new', 'open', 'save', 'archives']) fileBusy(action, true);
+    for (const action of ['new', 'open', 'save', 'archives', 'cleanup']) fileBusy(action, true);
     try {
       return await performRestoreDraft();
     } catch (err) {
@@ -912,7 +912,7 @@ function boot() {
       return false;
     } finally {
       restoreInProgress = false;
-      for (const action of ['new', 'open', 'save', 'archives']) fileBusy(action, false);
+      for (const action of ['new', 'open', 'save', 'archives', 'cleanup']) fileBusy(action, false);
     }
   }
 
@@ -920,7 +920,7 @@ function boot() {
     if (closeInProgress || restoreInProgress || openInProgress || newInProgress || saveInProgress || hasOpenAppDialog()) return false;
     // Read-only archive action: allowed even when the current editor is dirty.
     restoreInProgress = true;
-    for (const action of ['new', 'open', 'save', 'archives']) fileBusy(action, true);
+    for (const action of ['new', 'open', 'save', 'archives', 'cleanup']) fileBusy(action, true);
     try {
       const rows = await recoveryStore.list();
       const legacy = tauri ? readDraft(draftStorage) : null;
@@ -948,10 +948,51 @@ function boot() {
       return false;
     } finally {
       restoreInProgress = false;
-      for (const action of ['new', 'open', 'save', 'archives']) fileBusy(action, false);
+      for (const action of ['new', 'open', 'save', 'archives', 'cleanup']) fileBusy(action, false);
     }
   }
   document.getElementById('btn-archives').addEventListener('click', exportRecoveryArchive);
+
+  async function deleteRecoveryArchive() {
+    if (closeInProgress || restoreInProgress || openInProgress || newInProgress || saveInProgress || hasOpenAppDialog()) return false;
+    restoreInProgress = true;
+    for (const action of ['new', 'open', 'save', 'archives', 'cleanup']) fileBusy(action, true);
+    try {
+      const rows = await recoveryStore.list();
+      const legacyId = 'legacy-local-storage';
+      if (tauri && draftStorage && draftStorage.getItem(DRAFT_KEY) !== null) {
+        rows.push({ id: legacyId, path: 'Legacy localStorage', corrupt: !readDraft(draftStorage) });
+      }
+      if (!rows.length) { fileFeedback('Tidak ada arsip cadangan untuk dibersihkan.'); return false; }
+      const id = await pickRecovery(document, rows, { title: 'Pilih arsip untuk dihapus permanen', deleting: true });
+      if (!id) { fileFeedback('Penghapusan dibatalkan. Arsip tidak dihapus.'); return false; }
+      const localLegacy = tauri && id === legacyId;
+      const expected = localLegacy ? draftStorage.getItem(DRAFT_KEY) : !tauri ? await recoveryStore.inspect(id) : null;
+      const row = rows.find((item) => item.id === id);
+      const message = 'Hapus permanen arsip ' + (row?.path || id) + '?\n\n' +
+        'ID: ' + id + '\nSeluruh snapshot arsip ini akan dihapus. Dokumen aktif dan berkas Markdown asli tidak dihapus. ' +
+        'Ekspor salinan lebih dulu jika masih diperlukan. Tindakan ini tidak dapat dibatalkan.';
+      let confirmed = false;
+      if (tauri) {
+        const answer = await tauri.dialog.message(message, { title: 'Hapus arsip cadangan', kind: 'warning', buttons: { ok: 'Hapus permanen', cancel: 'Batal' } });
+        confirmed = answer === 'Hapus permanen' || answer === 'Ok';
+      } else confirmed = window.confirm(message);
+      if (!confirmed) { fileFeedback('Penghapusan dibatalkan. Arsip tidak dihapus.'); return false; }
+      if (localLegacy) {
+        if (expected === null || draftStorage.getItem(DRAFT_KEY) !== expected) throw new Error('Legacy berubah; pilih ulang');
+        draftStorage.removeItem(DRAFT_KEY);
+      } else await recoveryStore.remove(id, expected);
+      fileFeedback('Arsip yang dipilih dihapus. Dokumen aktif tidak diubah.');
+      return true;
+    } catch (err) {
+      fileFeedback('Cleanup belum selesai. Periksa ulang daftar arsip; sebagian berkas mungkin sudah terhapus. ' + String(err?.message || err), 'error');
+      return false;
+    } finally {
+      restoreInProgress = false;
+      for (const action of ['new', 'open', 'save', 'archives', 'cleanup']) fileBusy(action, false);
+    }
+  }
+  document.getElementById('btn-cleanup').addEventListener('click', deleteRecoveryArchive);
 
   async function performRestoreDraft() {
     if (dirty) return false; // Recovery must never overwrite current unsaved work.
@@ -1193,6 +1234,7 @@ function boot() {
     handleMenuAction: handleMenuAction,
     restoreDraftIfAny: restoreDraftIfAny,
     exportRecoveryArchive: exportRecoveryArchive,
+    deleteRecoveryArchive: deleteRecoveryArchive,
     loadRemoteImages: loadRemoteImages,
     flushDraft: flushDraft,
     discardDraft: discardDraft,

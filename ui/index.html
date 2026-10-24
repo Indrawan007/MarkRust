@@ -50,6 +50,13 @@
             <path d="M4 8h16v13H4zM3 3h18v5H3zM10 12h4"/>
           </svg>
         </button>
+        <button class="ghost-btn" id="btn-cleanup" type="button"
+                title="Hapus arsip cadangan dengan konfirmasi" aria-label="Hapus arsip cadangan">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/>
+          </svg>
+        </button>
       </div>
       <span class="tb-divider" aria-hidden="true"></span>
       <div class="mode-switch" role="group" aria-label="Mode editor">
@@ -124,7 +131,7 @@
 
 <dialog id="recovery-dialog" aria-labelledby="recovery-title">
   <h2 id="recovery-title">Pilih draf untuk dipulihkan</h2>
-  <p>Sesi aktif tidak ditampilkan. Draf lain tetap disimpan.</p>
+  <p id="recovery-description">Sesi aktif native tidak ditampilkan. Arsip lain tidak diubah saat pemilihan.</p>
   <div id="recovery-list"></div>
   <form method="dialog"><button type="submit">Nanti saja</button></form>
 </dialog>

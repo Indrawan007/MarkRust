@@ -33,6 +33,7 @@ export function createDiskRecovery(tauri) {
       });
     },
     select(id) { return enqueue(async () => decode(await tauri.core.invoke('select_recovery', { id }))); },
+    remove(id) { return enqueue(() => tauri.core.invoke('delete_recovery', { id })); },
     clear() { return enqueue(() => tauri.core.invoke('clear_recovery')); }
   };
 }

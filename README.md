@@ -449,3 +449,21 @@ gambar. Cadangan rusak tetap dipertahankan. Tujuan yang sama persis dengan path
 aktif ditolak, tetapi alias/symlink belum dikenali. Cleanup/penghapusan arsip
 belum tersedia. **221 tes frontend lulus**, tanpa build/install/push; dialog
 native dan hasil ekspor di Arch/Hyprland belum diverifikasi nyata.
+
+### Cleanup arsip dan mulai pengujian
+
+Tombol **Hapus arsip cadangan** kini memilih satu arsip lalu meminta konfirmasi
+permanen. Ekspor dulu bila diperlukan. Dokumen aktif dan berkas Markdown asal
+tidak dihapus. Arsip rusak boleh dibersihkan eksplisit. Native menolak sesi
+aktif/terkunci dan menghapus hanya snapshot/temp yang dikenali, bukan direktori
+secara rekursif; lock/direktori kosong tetap ada. I/O gagal di tengah cleanup
+bisa berarti sebagian snapshot sudah terhapus—periksa ulang daftar.
+
+Browser memakai Web Locks untuk melindungi workspace tab aktif. Tanpa API itu,
+cleanup browser dinonaktifkan; tab versi lama tanpa protokol lock tidak terjamin.
+Ini menggantikan catatan sebelumnya bahwa cleanup belum tersedia.
+
+**226 tes frontend lulus**. Tes Rust cleanup baru dan GUI native **belum diuji**:
+sandbox tidak punya Rust/pkg-config/Wayland. Lihat [TEST-SESSION.md](TEST-SESSION.md)
+untuk urutan tes browser lalu native dengan dokumen percobaan. Preview browser
+bukan bukti kompatibilitas Arch/Hyprland. Belum install atau push.

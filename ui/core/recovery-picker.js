@@ -34,9 +34,10 @@ export function pickRecovery(document, rows, options = {}) {
     const button = document.createElement('button');
     button.type = 'button';
     button.textContent = row.corrupt
-      ? 'Cadangan tidak dapat dibaca — berkas tetap disimpan (' + row.id + ')'
+      ? 'Cadangan tidak dapat dibaca (' + row.id + ')'
       : (row.path || 'Tanpa Judul') + ' — ' + formatSavedAt(row.savedAt);
-    button.disabled = Boolean(row.corrupt);
+    button.disabled = options.deleting ? row.canDelete === false : Boolean(row.corrupt);
+    if (options.deleting && row.canDelete === false) button.textContent += ' — sesi aktif atau Web Locks tidak tersedia';
     listen(button, 'click', () => finish(row.id));
     list.appendChild(button);
   }
