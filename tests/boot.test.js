@@ -688,3 +688,74 @@ test('repeated New requests produce one confirmation and restore controls after 
     assert.equal(api.isDirty(), true);
   } finally { release(); pendingAsk = null; nextAskResult = true; }
 });
+
+function mockImageDialog() {
+  const dialog = window.document.getElementById('image-dialog');
+  const show = dialog.showModal;
+  const close = dialog.close;
+  dialog.showModal = () => { dialog.open = true; };
+  dialog.close = () => { dialog.open = false; dialog.dispatchEvent(new window.Event('close')); };
+  return { dialog, restore() {
+    dialog.open = false;
+    if (show === undefined) delete dialog.showModal; else dialog.showModal = show;
+    if (close === undefined) delete dialog.close; else dialog.close = close;
+  } };
+}
+
+test('image dialog Escape preserves text/selection/dirty and clears URL', async () => {
+  nextAskResult = true;
+  await api.newDocument();
+  api.setMarkdown('abcdef\n');
+  api.quill.setSelection(1, 3, 'silent');
+  const before = api.getMarkdown();
+  const mock = mockImageDialog();
+  try {
+    api.quill.getModule('toolbar').handlers.image();
+    window.document.getElementById('image-url').value = 'https://example.com/private.png';
+    const cancel = new window.Event('cancel', { cancelable: true });
+    mock.dialog.dispatchEvent(cancel);
+    assert.equal(cancel.defaultPrevented, true);
+    assert.equal(mock.dialog.open, false);
+    assert.equal(api.getMarkdown(), before);
+    assert.equal(api.isDirty(), false);
+    assert.equal(api.quill.getSelection().index, 1);
+    assert.equal(api.quill.getSelection().length, 3);
+    assert.equal(window.document.getElementById('image-url').value, '');
+  } finally { mock.restore(); }
+});
+
+test('image submit after document changes does not insert into the new content', async () => {
+  const mock = mockImageDialog();
+  try {
+    api.quill.getModule('toolbar').handlers.image();
+    window.document.getElementById('image-url').value = 'https://example.com/stale.png';
+    api.quill.insertText(0, 'Baru ', 'user');
+    const before = api.getMarkdown();
+    window.document.getElementById('image-form').dispatchEvent(new window.Event('submit', { cancelable: true }));
+    assert.equal(api.getMarkdown(), before);
+    assert.equal(api.quill.root.querySelectorAll('img').length, 0);
+    assert.equal(mock.dialog.open, false);
+    assert.match(window.document.getElementById('file-feedback').textContent, /dokumen berubah/);
+  } finally { mock.restore(); }
+});
+
+test('image Cancel and invalid URL leave document unchanged', async () => {
+  await api.newDocument();
+  api.setMarkdown('Tulisan\n');
+  const before = api.getMarkdown();
+  const mock = mockImageDialog();
+  try {
+    api.quill.getModule('toolbar').handlers.image();
+    window.document.getElementById('image-url').value = 'javascript:alert(1)';
+    window.document.getElementById('image-form').dispatchEvent(new window.Event('submit', { cancelable: true }));
+    assert.equal(mock.dialog.open, true);
+    assert.ok(window.document.getElementById('image-error').textContent);
+    window.document.getElementById('image-cancel').click();
+    assert.equal(mock.dialog.open, false);
+    assert.equal(api.getMarkdown(), before);
+    assert.equal(api.isDirty(), false);
+    // A delayed submit after cancellation cannot insert an image.
+    window.document.getElementById('image-form').dispatchEvent(new window.Event('submit', { cancelable: true }));
+    assert.equal(api.getMarkdown(), before);
+  } finally { mock.restore(); }
+});

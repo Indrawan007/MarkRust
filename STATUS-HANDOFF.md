@@ -341,3 +341,21 @@ menu/direct actions, repeat/IME/Alt, dan satu konfirmasi Baru saat dipanggil
 berulang. Ini tes jsdom, bukan input keyboard/compositor Hyprland nyata.
 Tidak ada build native/install/CI yang dijalankan; perubahan tetap lokal agar
 push tidak memicu build workflow, sesuai arahan pengguna.
+
+## Tahap pemantapan 1 — konsistensi dialog/pembatalan
+
+Sesuai urutan yang disetujui, tahap pertama fokus pada dialog, bukan build.
+- Dialog gambar menyimpan snapshot generasi/revisi dan seleksi. Escape/Batal
+  membersihkan URL/error serta mengembalikan fokus/seleksi jika dokumen belum
+  berubah. Submit tertunda setelah tutup atau perubahan dokumen tidak menyisipkan
+  gambar pada posisi/dokumen yang salah. Reopen tidak mereset dialog yang aktif.
+- Picker recovery hanya memiliki satu promise aktif per dialog. Escape/Batal
+  menyelesaikan null, listener dibersihkan, fokus sebelumnya dikembalikan.
+  Tombol/event close lama tidak menyelesaikan picker yang baru dibuka.
+- Pemulihan startup tidak berjalan paralel dengan pemanggilan pemulihan lain.
+
+Verifikasi: **175/175 tes frontend lulus**. Tambahan mencakup Escape, Batal,
+URL invalid, submit stale, fokus/seleksi, picker berulang, event lama dan gagal
+showModal. Ini tes jsdom; native Escape/focus di Hyprland belum diverifikasi.
+Tidak ada build/install/push/CI pada tahap ini. Tahap editing dua mode dan
+pemisahan recovery yang ditunda dari sesi edit baru masih pekerjaan berikutnya.

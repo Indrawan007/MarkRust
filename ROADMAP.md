@@ -95,3 +95,11 @@ Pengguna meminta jangan build dulu. Perbaikan sekarang difokuskan pada alur
 harian: feedback buka/simpan, busy controls, guard dialog/shortcut dan pencegahan
 konfirmasi berulang. Baseline 168 tes frontend lulus. Build/install dan push
 pemicu CI ditunda; uji native Hyprland tetap belum dilakukan.
+
+### Tahap pemantapan 1 — dialog/pembatalan
+
+Implementasi dan tes otomatis selesai untuk Escape/Batal dialog gambar,
+seleksi/fokus, penolakan submit stale, satu picker recovery aktif, serta cleanup
+listener/event lama. 175 tes frontend lulus. Tidak ada build/push; uji native
+belum dilakukan. Berikutnya audit editing dua mode (seleksi, fokus, undo/redo,
+paste), kemudian lifecycle recovery yang ditunda/rusak.

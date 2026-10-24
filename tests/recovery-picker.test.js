@@ -36,3 +36,52 @@ test('cancelling resolves null and reopening has no stale close handler', async 
   doc.querySelector('button').click();
   assert.equal(await second, 'session-2');
 });
+
+test('Escape cancels once and restores focus', async () => {
+  const { doc, dialog, window } = setup();
+  const input = doc.createElement('input');
+  doc.body.appendChild(input);
+  input.focus();
+  const picked = pickRecovery(doc, [{ id: 'session-1' }]);
+  const event = new window.Event('cancel', { cancelable: true });
+  dialog.dispatchEvent(event);
+  assert.equal(event.defaultPrevented, true);
+  assert.equal(await picked, null);
+  assert.equal(dialog.open, false);
+  assert.equal(doc.activeElement, input);
+});
+
+test('repeated picker requests share one selection without replacing rows', async () => {
+  const { doc } = setup();
+  const first = pickRecovery(doc, [{ id: 'session-1', path: 'first.md' }]);
+  const second = pickRecovery(doc, [{ id: 'session-2', path: 'second.md' }]);
+  assert.equal(first, second);
+  assert.match(doc.querySelector('button').textContent, /first.md/);
+  doc.querySelector('button').click();
+  assert.equal(await first, 'session-1');
+});
+
+test('stale button clicks and queued close events cannot settle a reopened picker', async () => {
+  const { doc, dialog, window } = setup();
+  const first = pickRecovery(doc, [{ id: 'session-1' }]);
+  const oldButton = doc.querySelector('button');
+  oldButton.click();
+  await first;
+  const second = pickRecovery(doc, [{ id: 'session-2' }]);
+  oldButton.click();
+  dialog.dispatchEvent(new window.Event('close')); // Old queued event, new dialog still open.
+  assert.equal(dialog.open, true);
+  doc.querySelector('button').click();
+  assert.equal(await second, 'session-2');
+});
+
+test('showModal failure resolves as cancellation and allows retry', async () => {
+  const { doc, dialog } = setup();
+  const show = dialog.showModal;
+  dialog.showModal = () => { throw new Error('unavailable'); };
+  assert.equal(await pickRecovery(doc, [{ id: 'session-1' }]), null);
+  dialog.showModal = show;
+  const retry = pickRecovery(doc, [{ id: 'session-2' }]);
+  doc.querySelector('button').click();
+  assert.equal(await retry, 'session-2');
+});

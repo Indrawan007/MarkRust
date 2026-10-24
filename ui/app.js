@@ -117,13 +117,17 @@ function boot() {
   // berkas .md membengkak. Dialog memakai <dialog> native, bukan window.prompt
   // yang tidak reliabel di WKWebView/Tauri (bisa gagal diam-diam di macOS).
   let pendingImageRange = null;
+  let pendingImageStamp = null;
   const imageDialog = document.getElementById('image-dialog');
   const imageForm = document.getElementById('image-form');
   const imageInput = document.getElementById('image-url');
   const imageError = document.getElementById('image-error');
 
   function imageHandler() {
-    pendingImageRange = quill.getSelection(true);
+    if (hasOpenAppDialog()) return;
+    const range = quill.getSelection(true);
+    pendingImageRange = range ? { index: range.index, length: range.length } : null;
+    pendingImageStamp = documentStamp();
     imageInput.value = '';
     imageError.textContent = '';
     if (typeof imageDialog.showModal === 'function') imageDialog.showModal();
@@ -132,13 +136,42 @@ function boot() {
   }
 
   document.getElementById('image-cancel').addEventListener('click', function () {
-    if (typeof imageDialog.close === 'function') imageDialog.close();
-    else imageDialog.removeAttribute('open');
-    quill.focus();
+    closeImageDialog();
   });
+
+  imageDialog.addEventListener('close', function () {
+    if (imageDialog.open) return; // Ignore a queued close from the previous opening.
+    const range = pendingImageRange;
+    const stamp = pendingImageStamp;
+    pendingImageRange = null;
+    pendingImageStamp = null;
+    imageInput.value = '';
+    imageError.textContent = '';
+    quill.focus();
+    if (range && stamp && documentUnchanged(stamp)) {
+      quill.setSelection(range.index, range.length, 'silent');
+    }
+  });
+  imageDialog.addEventListener('cancel', function (event) {
+    event.preventDefault();
+    closeImageDialog();
+  });
+  function closeImageDialog() {
+    if (typeof imageDialog.close === 'function') imageDialog.close();
+    else {
+      imageDialog.removeAttribute('open');
+      imageDialog.dispatchEvent(new Event('close'));
+    }
+  }
 
   imageForm.addEventListener('submit', function (e) {
     e.preventDefault();
+    if (!imageDialog.open) return;
+    if (!pendingImageStamp || !documentUnchanged(pendingImageStamp)) {
+      closeImageDialog();
+      fileFeedback('Gambar tidak disisipkan karena dokumen berubah. Buka dialog lagi.', 'warning');
+      return;
+    }
     const clean = imageInput.value.trim();
     if (!isValidImageUrl(clean)) {
       imageError.textContent = 'Gunakan alamat http:// atau https://';
@@ -152,9 +185,8 @@ function boot() {
     quill.insertEmbed(idx, 'image', clean, 'user');
     if (tauri) loadImageUrls([clean]);
     quill.setSelection(idx + 1, 0, 'user');
-    if (typeof imageDialog.close === 'function') imageDialog.close();
-    else imageDialog.removeAttribute('open');
-    quill.focus();
+    pendingImageRange = null; // Keep the post-insert caret, not the old selection.
+    closeImageDialog();
   });
 
   // `toolbar` sengaja dikirim sebagai ARRAY, bukan objek
@@ -729,7 +761,14 @@ function boot() {
 
   /* Tawarkan pemulihan draf dari sesi sebelumnya. Dipanggil setelah konten
      awal dimuat, sehingga pengguna punya pembanding sebelum memutuskan. */
+  let restoreInProgress = false;
   async function restoreDraftIfAny() {
+    if (restoreInProgress) return false;
+    restoreInProgress = true;
+    try { return await performRestoreDraft(); }
+    finally { restoreInProgress = false; }
+  }
+  async function performRestoreDraft() {
     if (dirty) return false; // Recovery must never overwrite current unsaved work.
     const generation = documentGeneration;
     const revision = editRevision;
