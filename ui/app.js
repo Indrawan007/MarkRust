@@ -224,6 +224,7 @@ function boot() {
   let documentGeneration = 0;
   let editRevision = 0;
   let saveInProgress = false;
+  let openInProgress = false;
 
   function getCanonicalMarkdown() {
     return currentMode === 'markdown' ? textarea.value : quillToMarkdown();
@@ -301,6 +302,7 @@ function boot() {
   }
 
   function markDirty() {
+    if (!saveInProgress && !openInProgress) fileFeedback('');
     editRevision++;
     scheduleDraftSave();
     // Dijaga supaya IPC setTitle tidak dikirim pada setiap ketikan setelah
@@ -480,6 +482,7 @@ function boot() {
       const input = document.createElement('input');
       input.type = 'file';
       input.accept = '.md,.markdown,.txt';
+      input.addEventListener('cancel', function () { resolve(null); }, { once: true });
       input.addEventListener('change', function () {
         const file = input.files && input.files[0];
         if (!file) { resolve(null); return; }
@@ -505,25 +508,58 @@ function boot() {
     currentPath = null;
     applyDocument('');
     markClean();
+    fileFeedback('Dokumen baru.');
     if (currentMode === 'wysiwyg') quill.focus();
     return true;
   }
 
+  function fileFeedback(message, kind = 'info') {
+    const node = document.getElementById('file-feedback');
+    node.textContent = message;
+    node.dataset.kind = kind;
+    node.hidden = !message;
+  }
+
+  function fileBusy(action, busy) {
+    const button = document.getElementById('btn-' + action);
+    button.disabled = busy;
+    button.setAttribute('aria-busy', String(busy));
+  }
+
   async function openDocument() {
+    if (openInProgress) return false;
+    openInProgress = true;
+    fileBusy('open', true);
     const stamp = documentStamp();
-    if (dirty && !(await confirmDiscard(tauri))) return false;
-    if (!documentUnchanged(stamp)) return false;
     try {
+      if (dirty && !(await confirmDiscard(tauri))) {
+        fileFeedback('Buka dibatalkan. Dokumen aktif tetap dipertahankan.');
+        return false;
+      }
+      if (!documentUnchanged(stamp)) {
+        fileFeedback('Buka dibatalkan karena dokumen berubah. Coba lagi jika masih diperlukan.', 'warning');
+        return false;
+      }
+      fileFeedback('Memilih dan membaca berkas…');
       const result = tauri ? await openWithTauri(tauri) : await pickBrowserFile();
-      if (!result || !documentUnchanged(stamp)) return false;
+      if (!result) { fileFeedback('Buka dibatalkan.'); return false; }
+      if (!documentUnchanged(stamp)) {
+        fileFeedback('Hasil buka tidak diterapkan karena ada perubahan baru. Tulisanmu tetap dipertahankan.', 'warning');
+        return false;
+      }
       discardDraft();
       currentPath = result.path;
       applyDocument(result.contents);
       markClean();
+      fileFeedback('Dibuka: ' + basename(result.path));
       return true;
     } catch (err) {
+      fileFeedback('Gagal membuka berkas. Dokumen aktif tetap dipertahankan.', 'error');
       await showError(tauri, err && err.message ? err.message : String(err));
       return false;
+    } finally {
+      openInProgress = false;
+      fileBusy('open', false);
     }
   }
 
@@ -531,6 +567,8 @@ function boot() {
     // Never overlap writes to the same temporary file or race save dialogs.
     if (saveInProgress) return false;
     saveInProgress = true;
+    fileBusy('save', true);
+    fileFeedback('Menyimpan…');
     const generation = documentGeneration;
     const revision = editRevision;
     try {
@@ -544,23 +582,30 @@ function boot() {
         savedPath = downloadBrowserFile(
           currentPath ? basename(currentPath) : DEFAULT_FILENAME, contents);
       }
-      if (!savedPath) return false;
+      if (!savedPath) { fileFeedback('Simpan dibatalkan.'); return false; }
       // An old save must not rename/clean a different document opened meanwhile.
-      if (generation !== documentGeneration) return false;
+      if (generation !== documentGeneration) {
+        fileFeedback('Dokumen sebelumnya tersimpan; dokumen aktif tidak diubah.');
+        return false;
+      }
       currentPath = savedPath;
       if (revision !== editRevision || contents !== getCanonicalMarkdown()) {
         refreshTitle();
         flushDraft(); // Preserve edits made while the disk write/dialog was pending.
+        fileFeedback('Versi sebelumnya tersimpan. Masih ada perubahan baru — simpan lagi.', 'warning');
         return false; // Not all current edits are saved; close must remain blocked.
       }
       discardDraft();
       markClean();
+      fileFeedback(tauri ? 'Tersimpan: ' + basename(savedPath) : 'Unduhan dimulai. Periksa hasilnya di browser.');
       return true;
     } catch (err) {
+      fileFeedback('Gagal menyimpan. Perubahan belum dianggap tersimpan.', 'error');
       await showError(tauri, err && err.message ? err.message : String(err));
       return false;
     } finally {
       saveInProgress = false;
+      fileBusy('save', false);
     }
   }
 

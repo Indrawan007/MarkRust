@@ -558,3 +558,59 @@ test('native image loading uses restricted command and retains Markdown URL', as
   assert.equal(api.quill.root.querySelector('img').getAttribute('src'), 'data:image/png;base64,AAAA');
   assert.match(api.getMarkdown(), /https:\/\/images\.example\/native\.png/);
 });
+
+test('save feedback shows pending, rejects repeat and retains newer unsaved edits', async () => {
+  nextAskResult = true;
+  await api.newDocument();
+  api.quill.insertText(0, 'Awal', 'user');
+  let release;
+  pendingWrite = new Promise((r) => { release = r; });
+  const button = window.document.getElementById('btn-save');
+  const feedback = window.document.getElementById('file-feedback');
+  try {
+    const saving = api.saveDocument(false);
+    await new Promise((r) => setTimeout(r, 0));
+    assert.equal(button.disabled, true);
+    assert.equal(button.getAttribute('aria-busy'), 'true');
+    assert.match(feedback.textContent, /Menyimpan/);
+    assert.equal(await api.saveDocument(false), false);
+    api.quill.insertText(0, 'Baru ', 'user');
+    release();
+    assert.equal(await saving, false);
+    assert.match(feedback.textContent, /perubahan baru/);
+    assert.equal(feedback.dataset.kind, 'warning');
+    assert.equal(api.isDirty(), true);
+    assert.equal(button.disabled, false);
+  } finally { release(); pendingWrite = null; }
+});
+
+test('open feedback prevents duplicate dialogs and explains discarded stale result', async () => {
+  await api.newDocument();
+  let release;
+  pendingRead = new Promise((r) => { release = r; });
+  const button = window.document.getElementById('btn-open');
+  try {
+    const opening = api.openDocument();
+    await new Promise((r) => setTimeout(r, 0));
+    assert.equal(button.disabled, true);
+    assert.equal(await api.openDocument(), false);
+    api.quill.insertText(0, 'Pertahankan', 'user');
+    release();
+    assert.equal(await opening, false);
+    assert.match(window.document.getElementById('file-feedback').textContent, /Tulisanmu tetap dipertahankan/);
+    assert.equal(button.disabled, false);
+    assert.match(api.getMarkdown(), /Pertahankan/);
+  } finally { release(); pendingRead = null; }
+});
+
+test('failed save restores controls and never claims success', async () => {
+  failWrite = true;
+  try {
+    assert.equal(await api.saveDocument(false), false);
+    const feedback = window.document.getElementById('file-feedback');
+    assert.equal(feedback.dataset.kind, 'error');
+    assert.match(feedback.textContent, /Gagal menyimpan/);
+    assert.equal(window.document.getElementById('btn-save').disabled, false);
+    assert.equal(api.isDirty(), true);
+  } finally { failWrite = false; }
+});

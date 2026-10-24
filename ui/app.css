@@ -762,3 +762,16 @@
 #recovery-dialog { max-width: min(640px, 90vw); }
 #recovery-list { display: grid; gap: 8px; max-height: 50vh; overflow: auto; margin: 16px 0; }
 #recovery-list button { text-align: left; overflow-wrap: anywhere; padding: 10px; }
+
+/* Keep operation feedback separate from editor statistics and privacy notices. */
+#file-feedback {
+  flex: none;
+  padding: 6px 14px;
+  border-top: 1px solid var(--border-hi);
+  color: var(--text-dim);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+#file-feedback[hidden] { display: none; }
+#file-feedback[data-kind="warning"] { color: #f2b66d; }
+#file-feedback[data-kind="error"] { color: #f28b82; }

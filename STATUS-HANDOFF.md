@@ -310,3 +310,19 @@ sandbox Debian tanpa Rust/pkg-config/Wayland. Ini bukan hasil uji GUI Arch.
 Langkah berikutnya membutuhkan terminal di mesin Arch/Hyprland pengguna:
 `bash scripts/arch-local.sh doctor`, lalu build dan uji mengikuti panduan.
 Jangan menandai tahap 1 selesai sebelum binary benar-benar dijalankan di sana.
+
+## Pemantapan UX harian — tanpa build native
+
+Sesuai arahan pengguna, fokus kembali ke aplikasi dan **jangan build dulu**.
+Ditambahkan feedback operasi berkas yang terpisah dari statistik/privasi:
+status buka/simpan berlangsung, berhasil, batal, gagal, dan hasil stale yang
+ditolak untuk mempertahankan perubahan baru. Tombol aksi terkait disabled dan
+aria-busy selama operasi; buka berulang dicegah. Pesan lama dibersihkan pada
+suntingan baru. Input file browser menangani event cancel bila tersedia.
+
+Verifikasi sesi ini: **165/165 tes frontend lulus** via npm test. Tes baru
+meliputi status simpan tertunda + ketikan baru, buka tertunda + repeat ditolak,
+serta gagal simpan yang memulihkan tombol tanpa mengklaim sukses. Tidak ada
+build/install native atau verifikasi GUI Arch pada tahap ini. Jangan memicu
+build otomatis melalui push sebelum arahan jangan-build direvisi; workflow
+branch saat ini menjalankan Rust build saat push.
