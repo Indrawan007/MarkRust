@@ -260,3 +260,20 @@ timeout, penolakan worker kedua, serta pelepasan slot pada sukses/gagal.
 Baseline JS tetap **159/159 lulus**. Ini batas durasi pemanggil lookup, bukan
 jaminan bahwa OS membatalkan operasi DNS atau bahwa seluruh pipeline decode
 memiliki deadline wall-clock. Uji webview/network hostile tetap belum selesai.
+
+## Pengujian transport respons hostile (otomatis)
+
+Handler respons dipisah dari validasi URL/tujuan agar dapat diuji dengan server
+TCP loopback satu-request tanpa memperlonggar command produksi. Client yang
+dipakai tes tetap memakai kebijakan no_proxy/no_redirect produksi.
+
+Kasus Rust baru: respons PNG valid, Content-Type HTML, payload rusak, ukuran
+berdasarkan Content-Length dan stream tanpa Content-Length, redirect ke target
+loopback yang terpantau tidak menerima koneksi, serta gambar 4097 piksel yang
+ditolak decoder. Server dijalankan lokal di tes; tidak memakai endpoint internet.
+Baseline JavaScript tetap **159/159 lulus**.
+
+Batas bukti: ini tes HTTP transport/body + decoder, bukan TLS server adversarial,
+DNS rebinding end-to-end, routing OS, ataupun clipboard/network webview nyata.
+Command produksi tetap parse HTTPS/443 dan memvalidasi/pin IPv4 publik sebelum
+memanggil handler respons. Jangan menggunakan helper internal sebagai IPC baru.

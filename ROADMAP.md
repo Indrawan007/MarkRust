@@ -190,3 +190,10 @@ Caller lookup DNS kini memiliki deadline 5 detik dan maksimum satu worker DNS
 tertahan per proses. Retry ditolak selama lookup lama belum selesai; OS lookup
 tidak dibatalkan paksa. Tes Rust menggunakan resolver injeksi dan channel.
 Verifikasi hostile-network/webview nyata tetap diperlukan.
+
+### M3 parsial — tes transport hostile lokal
+
+Tes Rust ditambahkan untuk Content-Type/payload rusak, oversized advertised dan
+streamed body, redirect yang tidak diikuti, serta batas dimensi decoder. Tes
+menggunakan TCP loopback hanya melalui helper internal; command publik tetap
+mewajibkan HTTPS + IP publik. TLS/DNS/webview end-to-end masih belum diuji.

@@ -99,9 +99,18 @@ fn download(raw: &str) -> Result<String, String> {
         }
     }
     if addresses.is_empty() { return Err("Diperlukan tujuan IPv4 publik".into()); }
-    let client = Client::builder().no_proxy().redirect(Policy::none())
+    let client = restricted_client(host, &addresses)?;
+    fetch_raster(&client, url)
+}
+fn restricted_client(host: &str, addresses: &[SocketAddr]) -> Result<Client, String> {
+    Client::builder().no_proxy().redirect(Policy::none())
         .connect_timeout(Duration::from_secs(5)).timeout(Duration::from_secs(15))
-        .resolve_to_addrs(host, &addresses).build().map_err(|e| e.to_string())?;
+        .resolve_to_addrs(host, addresses).build().map_err(|e| e.to_string())
+}
+// Production reaches this only after parse_url and pinned public-IP checks.
+// Tests exercise response handling over loopback HTTP without bypassing those
+// checks in the public download command.
+fn fetch_raster(client: &Client, url: Url) -> Result<String, String> {
     let response = client.get(url).header("Accept", "image/png,image/jpeg,image/gif,image/webp")
         .send().map_err(|e| e.to_string())?;
     if !response.status().is_success() { return Err("HTTP gagal atau redirect ditolak".into()); }
@@ -165,6 +174,74 @@ mod tests {
         assert!(!busy.load(Ordering::Acquire));
         assert_eq!(resolve_host("127.0.0.1".into()).unwrap()[0].ip(), "127.0.0.1".parse::<IpAddr>().unwrap());
         // Target validation remains in download(), after resolution.
+    }
+
+    fn png_fixture() -> Vec<u8> {
+        let mut bytes = Cursor::new(Vec::new());
+        image::DynamicImage::new_rgb8(2, 2).write_to(&mut bytes, image::ImageFormat::Png).unwrap();
+        bytes.into_inner()
+    }
+    // A real local TCP server, one request only. Production policy is unchanged.
+    fn local_response(response: Vec<u8>) -> (Url, std::thread::JoinHandle<()>) {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let address = listener.local_addr().unwrap();
+        let worker = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            stream.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            stream.set_write_timeout(Some(Duration::from_secs(5))).unwrap();
+            let mut request = Vec::new();
+            let mut byte = [0u8; 1];
+            while !request.ends_with(b"\r\n\r\n") && request.len() < 16384 {
+                if stream.read(&mut byte).unwrap_or(0) == 0 { return; }
+                request.push(byte[0]);
+            }
+            // Client may close early when rejecting headers or oversized body.
+            let _ = stream.write_all(&response);
+        });
+        (Url::parse(&format!("http://{address}/image")).unwrap(), worker)
+    }
+    fn check_local_response(response: Vec<u8>) -> Result<String, String> {
+        let (url, server) = local_response(response);
+        let client = restricted_client("unused.example", &[]).unwrap();
+        let result = fetch_raster(&client, url);
+        server.join().unwrap();
+        result
+    }
+    #[test]
+    fn transport_accepts_valid_png_and_rejects_bad_mime_and_corruption() {
+        let png = png_fixture();
+        let mut valid = format!("HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", png.len()).into_bytes();
+        valid.extend_from_slice(&png);
+        assert!(check_local_response(valid).unwrap().starts_with("data:image/png;base64,"));
+        let html = b"HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 4\r\n\r\nevil".to_vec();
+        assert!(check_local_response(html).unwrap_err().contains("Content-Type"));
+        let corrupt = b"HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: 4\r\n\r\noops".to_vec();
+        assert!(check_local_response(corrupt).is_err());
+    }
+    #[test]
+    fn transport_rejects_declared_and_streamed_oversize_bodies() {
+        let declared = format!("HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nContent-Length: {}\r\n\r\n", MAX_INPUT + 1).into_bytes();
+        assert!(check_local_response(declared).unwrap_err().contains("5 MB"));
+        // No Content-Length: the streaming cap must still stop the response.
+        let mut streamed = b"HTTP/1.1 200 OK\r\nContent-Type: image/png\r\nConnection: close\r\n\r\n".to_vec();
+        streamed.resize(streamed.len() + MAX_INPUT as usize + 1, b'x');
+        assert!(check_local_response(streamed).unwrap_err().contains("5 MB"));
+    }
+    #[test]
+    fn transport_never_follows_redirect_even_to_a_reachable_target() {
+        let target = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        target.set_nonblocking(true).unwrap();
+        let location = format!("http://{}/secret", target.local_addr().unwrap());
+        let response = format!("HTTP/1.1 302 Found\r\nLocation: {location}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").into_bytes();
+        assert!(check_local_response(response).unwrap_err().contains("redirect"));
+        assert_eq!(target.accept().unwrap_err().kind(), std::io::ErrorKind::WouldBlock);
+    }
+    #[test]
+    fn decoder_rejects_images_over_dimension_limit() {
+        let mut png = Cursor::new(Vec::new());
+        image::DynamicImage::new_rgb8(4097, 1).write_to(&mut png, image::ImageFormat::Png).unwrap();
+        assert!(raster(png.get_ref()).is_err());
     }
 
 }
