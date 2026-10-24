@@ -81,3 +81,10 @@ berdasarkan kebutuhan nyata pengguna, bukan kelengkapan produk publik.
 - Jangan klaim nol kehilangan data atau keamanan total.
 - Jangan mengubah konfigurasi sistem/Hyprland pengguna tanpa persetujuan.
 - Lihat STATUS-HANDOFF.md untuk peta kode dan sejarah implementasi.
+
+### Persiapan tahap 1
+
+ARCH-HYPRLAND.md dan script doctor/build/install/rollback/uninstall per-user
+sudah tersedia. Build default --locked, resolusi lockfile harus eksplisit.
+162 tes JS lulus termasuk fixture script; uji native di mesin pengguna masih
+menunggu. Tidak ada konfigurasi Hyprland atau portal yang diubah otomatis.

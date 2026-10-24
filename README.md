@@ -12,6 +12,11 @@ tanpa split view.
 
 ## Menjalankan
 
+Untuk target utama **Arch + Hyprland**, gunakan [ARCH-HYPRLAND.md](ARCH-HYPRLAND.md):
+`doctor` → build binary lokal → uji langsung → install launcher per-user.
+Panduan Tauri generik di bawah tetap tersedia, tetapi tidak diperlukan untuk
+jalur binary pribadi ini.
+
 Butuh Rust toolchain dan dependensi webview sistem (lihat
 [dokumentasi prasyarat Tauri](https://v2.tauri.app/start/prerequisites/)).
 

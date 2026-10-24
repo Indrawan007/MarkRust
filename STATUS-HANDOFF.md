@@ -294,3 +294,19 @@ Batas bukti: ini tes HTTP transport/body + decoder, bukan TLS server adversarial
 DNS rebinding end-to-end, routing OS, ataupun clipboard/network webview nyata.
 Command produksi tetap parse HTTPS/443 dan memvalidasi/pin IPv4 publik sebelum
 memanggil handler respons. Jangan menggunakan helper internal sebagai IPC baru.
+
+## Persiapan pemakaian Arch/Hyprland
+
+Ditambahkan ARCH-HYPRLAND.md dan scripts/arch-local.sh:
+- doctor read-only, build release dengan lokasi output tetap dan --locked default;
+- --update-lock eksplisit untuk build pertama karena lockfile belum selaras;
+- install per-user + launcher/icon, satu backup binary, rollback dan uninstall
+  yang tidak menghapus dokumen/recovery; tidak memakai sudo/config WM.
+- Tes filesystem/cargo fixture: install/update/rollback/uninstall, path spasi,
+  perlindungan instalasi tidak dikelola, dan argumen build terkunci.
+
+Baseline JS terbaru: **162/162 lulus**. bash -n lulus; doctor benar melaporkan
+sandbox Debian tanpa Rust/pkg-config/Wayland. Ini bukan hasil uji GUI Arch.
+Langkah berikutnya membutuhkan terminal di mesin Arch/Hyprland pengguna:
+`bash scripts/arch-local.sh doctor`, lalu build dan uji mengikuti panduan.
+Jangan menandai tahap 1 selesai sebelum binary benar-benar dijalankan di sana.
