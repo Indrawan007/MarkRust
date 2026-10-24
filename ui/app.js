@@ -1,3 +1,4 @@
+import { registerSafeClipboard } from './core/safe-clipboard.js';
 /*
  * MarkRust — logika UI editor.
  *
@@ -62,6 +63,7 @@ function boot() {
   registerDividerBlot(Quill);
   // Harus sebelum `new Quill()` agar blot pengganti dipakai sejak awal.
   registerSafeImageBlot(Quill);
+  registerSafeClipboard(Quill);
 
   /* =========================================================
    * 2. Bahasa yang tersedia untuk syntax highlighting

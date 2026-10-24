@@ -84,9 +84,11 @@ runtime native dalam sesi sandbox ini. Jangan menandai M1/M2 selesai dulu.
 
 `img-src` masih mengizinkan `https:`; pertahanan sekarang di aplikasi, bukan
 CSP penuh. Jangan mengklaim nol request hanya dari tes DOM jsdom. Audit dengan
-network inspector pada Markdown dan clipboard asli. Khususnya periksa urutan
-pembuatan blot (`super.create(value)` dapat menyetel URL asli sebelum placeholder)
-dan parsing HTML sementara. Jika fetch teramati, perlakukan sebagai blocker.
+network inspector pada Markdown dan clipboard asli. Celah urutan pembuatan blot telah direproduksi dan diperbaiki: keputusan
+blokir kini dilakukan sebelum pemanggilan `super.create`, sehingga blot dasar
+hanya menerima placeholder untuk URL yang diblokir. Tes regresi merekam setiap
+penyetelan atribut src (bukan sekadar DOM akhir). Parsing HTML sementara dan
+clipboard nyata tetap perlu diaudit lewat network inspector. Jika fetch teramati, perlakukan sebagai blocker.
 
 Desain lanjutan: downloader native terbatas dengan validasi skema/DNS/IP,
 redirect, ukuran/timeouts, format gambar aman; tidak membuka HTTP client umum
@@ -142,3 +144,67 @@ perbaikan blocker data/security.
 - `c74339b`: M1b quota + tes proses kill.
 - `0ecfd7a`: M1c pemilih recovery.
 - `b931d22`: audit lifecycle + checklist native dan laporan handoff; CI `40074055940` lulus.
+
+
+## Update hardening blot gambar
+
+- Celah transient src direproduksi oleh tes sebelum perbaikan, lalu ditutup.
+- URL asli tetap tersedia pada Delta; pemuatan dengan izin eksplisit tetap jalan.
+- Baseline JS terbaru: **146/146 lulus** setelah `npm ci && npm test`.
+- Ini bukti urutan penyetelan atribut, bukan pengamatan request jaringan pada
+  webview asli. M3 dan checklist privasi belum dinyatakan selesai.
+
+## Update parsing HTML inert
+
+Normalisasi kini membuat dokumen kosong melalui DOMParser, kemudian membaca
+HTML tak tepercaya di `template.content` yang inert. Sanitasi dan penggantian
+src berjalan sebelum hasil diserahkan ke Quill. Template bersarang dibuang
+agar tidak meneruskan subtree yang belum disanitasi. Tes merekam input parser
+(dokumen kosong saja) dan mengunci penghapusan template bersarang.
+
+Baseline terbaru: **148/148 tes JavaScript lulus**. Ini hardening jalur
+normalisasi Markdown/HTML aplikasi; clipboard native Quill dan network aktual
+masih harus diuji pada checklist P01/P03. CSP/downloader native M3 belum selesai.
+
+## Update clipboard HTML
+
+`ui/core/safe-clipboard.js` mendaftarkan subclass clipboard sebelum instance
+Quill dibuat (aplikasi dan harness sama). convert() selalu menyaring HTML
+melalui template inert; HTML paste yang juga membawa file melewati heuristic
+Quill yang sebelumnya mem-parsing HTML mentah. Untuk kombinasi HTML + file,
+representasi HTML yang disanitasi diprioritaskan, bukan upload heuristic.
+Plaintext/URI-list/file-only tetap menggunakan jalur bawaan.
+
+Sanitasi clipboard sengaja terpisah dari normalisasi Markdown agar label bahasa
+code block/format yang sudah dinormalisasi tidak diubah ulang. Tes regresi
+menjaga round-trip tersebut. Tes clipboard meliputi HTML+file, replacement
+seleksi, bold, user-source event, plaintext dan editor disabled.
+
+Baseline JS: **151/151 lulus**. Event clipboard dites dengan jsdom/Quill asli,
+bukan clipboard OS. Belum ada bukti network inspector webview nyata, uji upload
+file-only native, atau penegakan CSP penuh; checklist P03 tetap BELUM DIUJI.
+
+## Update batas persetujuan gambar
+
+Izin bulk tidak lagi berupa boolean yang membolehkan semua URL pada dokumen.
+Tombol Muat gambar mengizinkan snapshot daftar URL yang ada saat diklik saja;
+gambar baru dari paste berikutnya kembali diblokir. revealAllowedImages juga
+memeriksa allow-list sendiri sebelum menyetel src, bukan hanya percaya bahwa
+pemanggil telah meminta izin.
+
+Dua tes baru gagal sebelum perbaikan dan lulus sesudahnya. Tes integrasi
+menjaga alur approve -> paste URL baru -> placeholder + tombol izin tampil
+lagi. Baseline JS terbaru: **154/154 lulus**. Ini pembatasan izin aplikasi,
+bukan pembatasan host/redirect/DNS; webview network dan M3/CSP masih terbuka.
+
+## Update variasi URL browser
+
+Deteksi jaringan kini konservatif terhadap semua awalan HTTP(S), termasuk
+bentuk tanpa slash lengkap, serta network-path dengan backslash/mixed slash.
+Sebelumnya regex mensyaratkan // sehingga `https:host/path` tidak diklasifikasi
+remote. Regression test mereproduksi kegagalan sebelum perbaikan. Tes juga
+mencakup karakter kontrol dan entity HTML yang didekode parser inert.
+
+Baseline JS: **156/156 lulus**. URL asli tetap disimpan dalam atribut inert/model;
+perubahan ini tidak memperluas izin. Ini bukan validasi SSRF/DNS atau bukti
+network webview: native downloader dan CSP ketat tetap pekerjaan M3 terpisah.

@@ -227,3 +227,131 @@ test('beberapa gambar: semua ditahan, semuanya bisa diizinkan sekaligus', () => 
   assert.equal(revealAllowedImages(q), 2);
   assert.deepEqual(Array.from(q.root.querySelectorAll('img')).map((i) => i.getAttribute('src')), urls);
 });
+
+// Record every src assignment, including the temporary detached node created
+// by the base Quill blot. Looking only at the final DOM misses this leak.
+function recordImageSources(run) {
+  const { window } = getEnv();
+  const proto = window.Element.prototype;
+  const original = proto.setAttribute;
+  const sources = [];
+  proto.setAttribute = function (name, value) {
+    if (this.tagName === 'IMG' && String(name).toLowerCase() === 'src') {
+      sources.push(String(value));
+    }
+    return original.call(this, name, value);
+  };
+  try { run(); } finally { proto.setAttribute = original; }
+  return sources;
+}
+
+test('blocked direct embeds never transiently assign a remote src', () => {
+  resetImagePolicy();
+  const q = createQuill();
+  const urls = [REMOTE, '//tracker.example/pixel.png', 'http://tracker.example/x.png'];
+  const sources = recordImageSources(() => {
+    for (const url of urls) q.insertEmbed(0, 'image', url, 'user');
+  });
+  assert.ok(sources.length >= urls.length);
+  assert.deepEqual(sources.filter(isRemoteImageUrl), []);
+  const imageValues = q.getContents().ops.filter((op) => op.insert?.image).map((op) => op.insert.image);
+  for (const url of urls) assert.ok(imageValues.includes(url));
+});
+
+test('explicitly allowed images still assign their original src', () => {
+  resetImagePolicy();
+  allowRemoteImage(REMOTE);
+  const q = createQuill();
+  const sources = recordImageSources(() => q.insertEmbed(0, 'image', REMOTE, 'user'));
+  assert.ok(sources.includes(REMOTE));
+  resetImagePolicy();
+});
+
+test('normalization never hands untrusted resources to DOMParser', () => {
+  resetImagePolicy();
+  const parsedInputs = [];
+  class RecordingParser {
+    parseFromString(input, type) {
+      parsedInputs.push(input);
+      return new DOMParser().parseFromString(input, type);
+    }
+  }
+  const output = normalizeForQuill(
+    '<img src="' + REMOTE + '"><iframe src="https://tracker.example/frame"></iframe>',
+    RecordingParser
+  );
+  assert.deepEqual(parsedInputs, ['']);
+  const doc = new DOMParser().parseFromString(output, 'text/html');
+  assert.equal(doc.querySelector('iframe'), null);
+  assert.equal(doc.querySelector('img').getAttribute('src'), IMAGE_PLACEHOLDER);
+  assert.equal(doc.querySelector('img').getAttribute('data-mr-src'), REMOTE);
+});
+
+test('nested templates cannot carry unsanitized resource markup downstream', () => {
+  resetImagePolicy();
+  const output = normalizeForQuill(
+    '<p>Keep</p><template><img src="https://tracker.example/hidden.png"></template>', DOMParser
+  );
+  assert.match(output, /Keep/);
+  assert.ok(!output.includes('<template'));
+  assert.ok(!output.includes('hidden.png'));
+});
+
+test('bulk consent is limited to URLs present at the time of approval', () => {
+  resetImagePolicy();
+  allowAllRemoteImages([REMOTE]);
+  const later = 'https://another-tracker.example/later.png';
+  assert.equal(isRemoteImageAllowed(REMOTE), true);
+  assert.equal(isRemoteImageAllowed(later), false);
+  const q = createQuill();
+  const sources = recordImageSources(() => q.insertEmbed(0, 'image', later, 'user'));
+  assert.deepEqual(sources.filter(isRemoteImageUrl), []);
+  assert.equal(q.root.querySelector('img').getAttribute('src'), IMAGE_PLACEHOLDER);
+  resetImagePolicy();
+});
+
+test('reveal helper never loads an image without explicit URL consent', () => {
+  resetImagePolicy();
+  const q = render('![blocked](' + REMOTE + ')\n');
+  const sources = recordImageSources(() => assert.equal(revealAllowedImages(q), 0));
+  assert.deepEqual(sources.filter(isRemoteImageUrl), []);
+  assert.equal(q.root.querySelector('img').getAttribute('src'), IMAGE_PLACEHOLDER);
+  allowRemoteImage(REMOTE);
+  assert.equal(revealAllowedImages(q), 1);
+  assert.equal(q.root.querySelector('img').getAttribute('src'), REMOTE);
+  resetImagePolicy();
+});
+
+test('browser-normalized HTTP URL variants are blocked before src assignment', () => {
+  resetImagePolicy();
+  const urls = [
+    'https:tracker.example/pixel.png',
+    'http:/tracker.example/pixel.png',
+    'https:\\tracker.example\\pixel.png',
+    '\\\\tracker.example\\pixel.png',
+    '/\\tracker.example/pixel.png',
+    'h\tttps://tracker.example/pixel.png'
+  ];
+  const q = createQuill();
+  for (const url of urls) {
+    assert.equal(isRemoteImageUrl(url), true, 'must classify as network-capable: ' + JSON.stringify(url));
+    const sources = recordImageSources(() => q.insertEmbed(0, 'image', url, 'user'));
+    assert.ok(sources.every((src) => src === IMAGE_PLACEHOLDER));
+  }
+});
+
+test('HTML entities and backslash URLs remain inert after normalization', () => {
+  resetImagePolicy();
+  const cases = [
+    ['<img src="https&#58;tracker.example/pixel.png">', 'https:tracker.example/pixel.png'],
+    ['<img src="https&#58;&#92;&#92;tracker.example/pixel.png">', 'https:\\\\tracker.example/pixel.png'],
+    ['<img src="&#92;&#92;tracker.example/pixel.png">', '\\\\tracker.example/pixel.png']
+  ];
+  for (const [input, original] of cases) {
+    const html = normalizeForQuill(input, DOMParser);
+    const parsed = new DOMParser().parseFromString(html, 'text/html');
+    const img = parsed.querySelector('img');
+    assert.equal(img.getAttribute('src'), IMAGE_PLACEHOLDER);
+    assert.equal(img.getAttribute('data-mr-src'), original);
+  }
+});

@@ -17,7 +17,6 @@
  */
 
 const allowedUrls = new Set();
-let allowAllForCurrentDocument = false;
 
 /** Placeholder lokal (data URI) — tidak pernah menyentuh jaringan. */
 export const IMAGE_PLACEHOLDER =
@@ -43,7 +42,10 @@ export function isRemoteImageUrl(url) {
   var cleaned = String(url == null ? '' : url)
     .replace(/[\u0000-\u0020\u007f]/g, '')
     .trim();
-  return /^(?:https?:)?\/\//i.test(cleaned);
+  // WHATWG special URLs accept missing slashes and normalize backslashes.
+  // Classify conservatively before a browser or Quill can normalize them.
+  cleaned = cleaned.replace(/\\/g, '/');
+  return /^https?:/i.test(cleaned) || cleaned.startsWith('//');
 }
 
 export function isPlaceholderUrl(url) {
@@ -52,7 +54,6 @@ export function isPlaceholderUrl(url) {
 
 export function resetImagePolicy() {
   allowedUrls.clear();
-  allowAllForCurrentDocument = false;
 }
 
 /** Izinkan satu URL (dipakai saat pengguna menyisipkan gambar sendiri). */
@@ -60,14 +61,14 @@ export function allowRemoteImage(url) {
   if (url) allowedUrls.add(String(url));
 }
 
-/** Izinkan semua URL pada dokumen saat ini (tombol "Muat gambar"). */
+/** Izinkan hanya snapshot daftar URL saat tombol "Muat gambar" ditekan.
+ * URL baru yang dipaste kemudian tidak otomatis memperoleh izin. */
 export function allowAllRemoteImages(urls) {
-  allowAllForCurrentDocument = true;
   (urls || []).forEach(function (u) { if (u) allowedUrls.add(String(u)); });
 }
 
 export function isRemoteImageAllowed(url) {
-  return allowAllForCurrentDocument || allowedUrls.has(String(url || ''));
+  return allowedUrls.has(String(url || ''));
 }
 
 export function allowedUrlCount() {

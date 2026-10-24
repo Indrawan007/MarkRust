@@ -158,3 +158,21 @@ Guard revisi ditambahkan pada Baru/Buka/drop setelah operasi async; restore
 menolak dokumen kotor. 144 tes JS lulus. Hasil, batas terbuka dan langkah lanjut
 ada di STATUS-HANDOFF.md; matriks uji native ada di DESKTOP-TEST-CHECKLIST.md.
 M1/M2 tetap belum dinyatakan tuntas tanpa bukti runtime desktop.
+
+### M3 parsial — clipboard HTML
+
+Subclass clipboard menyaring HTML sebelum parser Quill, termasuk kombinasi
+HTML + file. Sanitasi terpisah dari transformasi Markdown. Tes JS 151 lulus;
+uji clipboard OS/network tetap belum dilakukan. Ini belum menutup M3.
+
+### M3 parsial — persetujuan URL spesifik
+
+Izin Muat gambar dibatasi pada daftar URL saat klik, bukan seluruh URL masa
+depan pada dokumen. Helper reveal memeriksa izin sendiri. Tes integrasi paste
+sesudah consent ditambahkan; 154 tes JS lulus. Uji network/native tetap pending.
+
+### M3 parsial — variasi URL jaringan
+
+Deteksi sebelum render menutup bentuk HTTP(S) tanpa slash lengkap serta
+backslash/mixed slash, termasuk yang disamarkan dengan entity HTML. 156 tes JS
+lulus; verifikasi jaringan webview dan native downloader tetap belum selesai.

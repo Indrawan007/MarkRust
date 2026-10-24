@@ -1,3 +1,4 @@
+import { registerSafeClipboard } from '../ui/core/safe-clipboard.js';
 /*
  * Harness pengujian: menjalankan Quill 2 + marked yang SAMA dengan yang
  * di-vendoring aplikasi, di atas jsdom. Tidak ada mock konversi — tes
@@ -79,6 +80,7 @@ export function getEnv() {
   // seperti yang terjadi saat tes round-trip gambar gagal.
   registerDividerBlot(Quill);
   registerSafeImageBlot(Quill);
+  registerSafeClipboard(Quill);
 
   env = { dom, window, Quill, marked, DOMParser: window.DOMParser };
   return env;
