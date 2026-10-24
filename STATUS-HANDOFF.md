@@ -638,3 +638,23 @@ Batas terbuka:
   metadata bila byte isi sama. Pemeriksaan native atomik/locking lintas proses
   belum diterapkan. Save As dapat sengaja menimpa tujuan yang dipilih pengguna.
 - Tidak ada perubahan Rust/IPC, build/install/push. Uji native GUI/disk belum ada.
+
+## Urgent recovery — isolasi workspace fallback browser
+
+- ui/core/browser-recovery.js memberi workspace localStorage baru per page,
+  dengan key markrust.recovery.session.<id>. Write/clear hanya milik workspace
+  itu, tidak menimpa/menghapus key legacy atau sesi terdahulu. Key tidak dibuat
+  sampai ada write; clear tanpa kepemilikan tidak menghapus collision key.
+- Arsip sesi/legacy ditampilkan memakai picker yang sama. Import read-only,
+  item invalid/rusak disabled; payload legacy tanpa version masih didukung.
+- App memakai antarmuka recoveryStore untuk native/browser. Native tetap memakai
+  disk+fallback legacy; browser tidak lagi menjalankan saveDraft/clearDraft pada
+  satu key legacy. Fungsi lama tetap tersedia untuk compatibility/unit tests.
+- **218/218 tes frontend lulus**: adapter preservation/corrupt/quota/collision/
+  sesi berikutnya, serta boot browser nyata Quill+jsdom (defer→edit→download
+  save→restore→edit) memastikan sumber legacy byte-identical dan own-key cleared.
+- Batas: belum ada cleanup/ekspor arsip eksplisit, arsip menumpuk pada quota
+  localStorage. Tidak ada cross-tab liveness/locking: sesi tab lain dapat muncul
+  sebagai kandidat dan diimpor sebagai salinan; bukan dukungan multi-tab penuh.
+  Persistensi private mode/unload/browser restart nyata belum diuji.
+- Tidak ada Rust/build/install/push. Native Arch/Hyprland tetap belum divalidasi.

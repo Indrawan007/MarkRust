@@ -424,3 +424,15 @@ masih bisa terjadi di antara read dan write. Save As tetap dapat sengaja menimpa
 berkas pilihan pengguna. 214 tes frontend lulus; belum uji native/dua proses,
 tidak build/install/push. Uraian sebelumnya tentang konflik yang belum tersedia
 kini merujuk pada penanganan atomik yang masih belum diterapkan.
+
+### Recovery fallback browser per sesi
+
+Fallback browser sekarang mencadangkan ke key localStorage per workspace/page,
+bukan menimpa satu key legacy. Arsip lama (termasuk legacy) diimpor read-only,
+dan New/Simpan hanya membersihkan workspace sendiri. 218 tes frontend lulus,
+termasuk alur boot browser dengan Quill di jsdom. Ini menggantikan catatan lama
+bahwa fallback masih memakai satu key untuk semua pekerjaan.
+
+Cleanup/ekspor arsip belum tersedia; quota localStorage tetap berlaku dan belum
+ada deteksi sesi tab lain yang aktif. Persistensi/private-mode/browser restart
+nyata serta native Arch/Hyprland belum diuji. Tidak build/install/push.

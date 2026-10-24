@@ -197,3 +197,9 @@ Baseline isi dari Open/save dibandingkan melalui read_document sebelum Simpan
 biasa. Konflik/target tak terbaca menahan write dan save-on-close, mengarahkan
 Save As eksplisit. 214 tes frontend lulus. Ini belum menutup race read→write;
 CAS/locking native dan uji dua proses tetap belum ada. Tanpa build/install/push.
+
+Isolasi fallback browser kini diimplementasikan: key per workspace/page,
+read-only import sesi/legacy, corrupt rows dan clear hanya sesi sendiri. 218 tes
+frontend lulus termasuk boot browser + Quill/jsdom. Menutup celah satu-key
+tertimpa saat defer/edit/save, bukan klaim multi-tab penuh atau persistensi
+private mode. Cleanup/ekspor arsip dan tekanan quota masih tersisa; tanpa build.

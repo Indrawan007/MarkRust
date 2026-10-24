@@ -182,3 +182,10 @@ ini belum dijalankan di webview/OS nyata.
   tetap membuka jendela. Save As ke tujuan baru mempertahankan file eksternal.
   Uji save berikutnya memakai baseline terbaru. Preflight bukan locking: race
   perubahan eksternal antara check/write tetap terbuka; belum diuji native.
+
+- U20 (fallback browser): tunda legacy/sesi lama, edit lalu download Simpan atau
+  New: sumber lama tetap byte-identical. Reload menawarkan sesi pekerjaan lama
+  yang belum dibersihkan; restore menghasilkan salinan, edit tidak mengubah
+  arsip. Quota/private-mode memberi error, bukan membuang arsip. Tab lain bisa
+  tampil sebagai kandidat karena belum ada liveness/locking; jangan menganggap
+  dukungan multi-tab selesai. jsdom lulus, browser nyata/restart belum diuji.

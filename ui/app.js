@@ -1,3 +1,4 @@
+import { createBrowserRecovery } from './core/browser-recovery.js';
 import { enhanceColorPickers } from './core/color-picker.js';
 import { registerSafeClipboard } from './core/safe-clipboard.js';
 /*
@@ -39,7 +40,7 @@ import {
 import { pickRecovery } from './core/recovery-picker.js';
 import { createDiskRecovery } from './core/recovery.js';
 import {
-  readDraft, saveDraft, clearDraft, restoreMessage, DRAFT_KEY
+  readDraft, restoreMessage, DRAFT_KEY
 } from './core/drafts.js';
 
 const Quill = window.Quill;
@@ -305,13 +306,13 @@ function boot() {
    * Draft recovery
    *
    * Konfirmasi tutup tidak cukup: force-quit / crash / Cmd+Q di macOS bisa
-   * melewati event close. Draf disimpan ke localStorage webview saat dokumen
-   * kotor, lalu ditawarkan kembali pada startup berikutnya.
+   * melewati event close. Dokumen kotor dicadangkan ke sesi disk native atau
+   * sesi localStorage browser; arsip lama diimpor sebagai salinan.
    * -------------------------------------------------------*/
   let draftStorage = null;
   try { draftStorage = window.localStorage || null; } catch (e) { draftStorage = null; }
 
-  const diskRecovery = tauri ? createDiskRecovery(tauri) : null;
+  const recoveryStore = tauri ? createDiskRecovery(tauri) : createBrowserRecovery(draftStorage);
   const DRAFT_DEBOUNCE = 700;
   let draftTimer = null;
   let draftDeadline = null;
@@ -324,24 +325,19 @@ function boot() {
     const generation = documentGeneration;
     const isCurrent = () => epoch === draftStatusEpoch && generation === documentGeneration && dirty;
     const draft = { markdown: getCanonicalMarkdown(), path: currentPath, savedAt: Date.now() };
-    if (diskRecovery) {
-      return diskRecovery.write(draft).then(() => {
-        if (isCurrent()) {
-          draftError.hidden = true;
-          draftError.title = '';
-        }
-        return true;
-      }, (err) => {
-        if (isCurrent()) {
-          draftError.hidden = false;
-          draftError.title = String(err && err.message ? err.message : err);
-        }
-        return false;
-      });
-    }
-    const saved = saveDraft(draftStorage, draft);
-    draftError.hidden = saved;
-    return saved;
+    return recoveryStore.write(draft).then(() => {
+      if (isCurrent()) {
+        draftError.hidden = true;
+        draftError.title = '';
+      }
+      return true;
+    }, (err) => {
+      if (isCurrent()) {
+        draftError.hidden = false;
+        draftError.title = String(err && err.message ? err.message : err);
+      }
+      return false;
+    });
   }
 
   /** Paksa tulis draf sekarang (dipakai sebelum dialog tutup / pagehide). */
@@ -370,11 +366,9 @@ function boot() {
     draftError.hidden = true;
     clearTimeout(draftTimer);
     draftTimer = null;
-    // Native archives and legacy storage are separate sources. Clearing the
-    // active native workspace must not delete an unimported/deferred legacy draft.
-    if (!diskRecovery) clearDraft(draftStorage);
+    // Clear only this workspace, never a deferred legacy/session archive.
     draftError.title = '';
-    if (diskRecovery) diskRecovery.clear().catch(() => {
+    if (recoveryStore) recoveryStore.clear().catch(() => {
       if (epoch !== draftStatusEpoch) return;
       fileFeedback('Cadangan sebelumnya gagal dibersihkan; berkas recovery mungkin masih ada.', 'warning');
     });
@@ -928,8 +922,8 @@ function boot() {
     const revision = editRevision;
     let draft;
     try {
-      if (diskRecovery) {
-        const rows = await diskRecovery.list();
+      if (recoveryStore) {
+        const rows = await recoveryStore.list();
         if (rows.length) {
           const id = rows.length > 1 ? await pickRecovery(document, rows) : rows[0].id;
           if (!id || generation !== documentGeneration || revision !== editRevision) return false;
@@ -937,12 +931,12 @@ function boot() {
             fileFeedback('Cadangan tidak dapat dibaca. Berkas recovery tetap disimpan.', 'error');
             return false;
           }
-          draft = await diskRecovery.select(id); // Read-only copy, not session adoption.
+          draft = await recoveryStore.select(id); // Read-only copy, not session adoption.
         } else {
-          draft = await diskRecovery.read();
+          draft = await recoveryStore.read();
         }
       }
-      if (!draft) draft = readDraft(draftStorage); // Migration from older versions.
+      if (!draft && tauri) draft = readDraft(draftStorage); // Migration from older versions.
     } catch (err) {
       draftError.hidden = false;
       draftError.title = String(err?.message || err);
