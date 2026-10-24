@@ -964,3 +964,35 @@ test('Space pada swatch menerapkan warna lewat handler Quill dan menutup picker'
   api.quill.setSelection(0, 0);
   await api.flushDraft();
 });
+
+test('paste screenshot dan upload drop tidak membaca berkas atau menyisipkan base64', async () => {
+  await api.newDocument();
+  api.setMode('wysiwyg');
+  api.quill.setText('Tetap\n');
+  api.quill.setSelection(0, 5);
+  const before = api.quill.getContents();
+  const OriginalReader = window.FileReader;
+  let reads = 0;
+  window.FileReader = class { constructor() { reads++; throw new Error('unexpected read'); } };
+  try {
+    const file = new window.File(['png'], 'screenshot.png', { type: 'image/png' });
+    api.quill.clipboard.onCapturePaste({
+      defaultPrevented: false,
+      preventDefault() {},
+      clipboardData: { files: [file], getData() { return ''; } }
+    });
+    // Same entry point used by Quill's native drop handler; no async read starts.
+    api.quill.uploader.upload({ index: 0, length: 5 }, [file]);
+    api.quill.uploader.upload({ index: 0, length: 5 }, [{ type: 'image/webp' }]);
+    assert.equal(reads, 0);
+    assert.deepEqual(api.quill.getContents(), before);
+    assert.equal(api.quill.getSelection().length, 5);
+    assert.match(window.document.getElementById('file-feedback').textContent, /URL HTTPS/);
+    api.setMarkdown('Dokumen berikutnya\n');
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(api.getMarkdown(), 'Dokumen berikutnya\n');
+  } finally {
+    window.FileReader = OriginalReader;
+    await api.flushDraft();
+  }
+});

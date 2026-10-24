@@ -60,3 +60,15 @@ test('plaintext paste still works and disabled editors ignore paste', () => {
   assert.equal(paste(q, '<b>ignored</b>', 'ignored'), false);
   assert.equal(q.getText(), 'plain\n');
 });
+
+test('plain text with attached files replaces selection instead of uploading', () => {
+  const q = createQuill();
+  q.setText('abc\n', 'silent');
+  q.setSelection(1, 1, 'silent');
+  let uploads = 0;
+  q.uploader.upload = () => { uploads++; };
+  assert.equal(paste(q, '', 'X', [{ type: 'image/png' }]), true);
+  assert.equal(q.getText(), 'aXc\n');
+  assert.equal(uploads, 0);
+  assert.equal(q.getSelection().index, 2);
+});

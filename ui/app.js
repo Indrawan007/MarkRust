@@ -210,6 +210,15 @@ function boot() {
     placeholder: 'Mulai mengetik di sini... (mode WYSIWYG)'
   });
 
+  // The default uploader asynchronously inserts FileReader data URLs for
+  // paste/drop. Local image embedding is not supported: block the common
+  // upload entry point before any read starts (including non-default MIME).
+  quill.uploader.upload = function (_range, files) {
+    if (files && files.length && !hasOpenAppDialog()) {
+      fileFeedback('Gambar/berkas dari clipboard tidak disisipkan. Untuk gambar, gunakan tombol Sisipkan gambar dengan URL HTTPS.', 'warning');
+    }
+  };
+
   // Pindahkan toolbar Quill ke dalam toolbar aplikasi, lalu pasang handler
   // gambar kustom (menggantikan handler bawaan Quill yang memakai prompt).
   const toolbarModule = quill.getModule('toolbar');

@@ -19,7 +19,17 @@ export function registerSafeClipboard(Quill) {
       if (event.defaultPrevented || !this.quill.isEnabled()) return;
       const html = event.clipboardData?.getData('text/html');
       if (!html) {
-        // Preserve Quill's plaintext, URI-list and local file upload behavior.
+        // Some clipboard providers attach an image/file alongside useful plain
+        // text. Prefer the text; Quill otherwise routes this to its uploader
+        // and silently loses the textual representation.
+        const text = event.clipboardData?.getData('text/plain');
+        if (text) {
+          event.preventDefault();
+          const range = this.quill.getSelection(true);
+          if (range) this.onPaste(range, { html: '', text });
+          return;
+        }
+        // URI-list/file-only behavior remains delegated to the app's uploader.
         return super.onCapturePaste(event);
       }
       event.preventDefault();

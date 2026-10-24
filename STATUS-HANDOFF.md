@@ -448,3 +448,19 @@ Batas terbuka:
 - Nama warna menggunakan nilai hex (bukan nama warna terjemahan). Belum klaim
   audit screen reader, posisi popup/jendela sempit atau WebKitGTK selesai.
   Tidak build/install/push; tes Rust/native tetap belum dijalankan.
+
+## Tahap pemantapan 4 — putaran clipboard/file upload
+
+- Audit menemukan uploader default Quill masih membaca gambar lokal via
+  FileReader dan memasukkan data URL secara async. Ini bertentangan dengan
+  kebijakan URL-only dialog gambar dan dapat selesai setelah dokumen diganti.
+- Aplikasi kini menolak jalur upload bersama untuk paste/drop sebelum pembacaan
+  dimulai; menampilkan feedback gunakan URL HTTPS. Tidak ada konversi lokal,
+  attachment atau screenshot embedding yang ditambahkan. Ini hanya menutup
+  jalur uploader default, bukan klaim menolak semua kemungkinan data URL di DOM.
+- Clipboard plain text + file memilih representasi teks, mengganti seleksi dan
+  mempertahankan caret; HTML tetap melalui sanitizer. File-only paste tidak
+  menyisipkan/menimpa isi atau memulai pembacaan async.
+- **189/189 tes frontend lulus**; tes screenshot, upload entry point yang juga
+  dipakai drop, tidak ada FileReader, seleksi tetap dan teks+file. Drop event
+  nyata/clipboard provider Wayland tetap belum diuji. Tidak build/install/push.

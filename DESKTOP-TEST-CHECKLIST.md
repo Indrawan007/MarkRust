@@ -104,3 +104,11 @@ ini belum dijalankan di webview/OS nyata.
   tertutup tidak ikut urutan Tab. Uji juga klik mouse, posisi popup pada jendela
   sempit/scaling, serta nama swatch hex lewat accessibility inspector bila ada.
   Implementasi dites jsdom, checklist native ini tetap belum dijalankan.
+
+- U05: paste screenshot PNG/JPEG dan drop gambar lokal tidak menyisipkan base64
+  atau menghapus teks terpilih; paste file-only memberi arahan URL HTTPS.
+  Drop berkas non-Markdown boleh menampilkan penolakan jenis berkas. Clipboard
+  dengan plain text + file harus tetap memasukkan teks; rich HTML tetap memakai
+  sanitizer. Coba clipboard provider Wayland yang dipakai sehari-hari, lalu
+  segera ganti dokumen: tidak boleh ada gambar lokal muncul belakangan.
+  Pengujian native belum dijalankan; tes otomatis hanya entry point uploader.

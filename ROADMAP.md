@@ -134,3 +134,9 @@ Space/panah/Home/End serta close saat fokus keluar ditambahkan tanpa modifikasi
 vendor Quill. 187 tes frontend lulus; penerapan warna pada seleksi dan Escape
 tercakup. Uji screen reader/WebKitGTK, popup di jendela sempit dan clipboard
 Wayland tetap manual/belum dilakukan. Build tetap menunggu izin.
+
+Putaran clipboard: hentikan uploader base64 default Quill untuk gambar lokal
+paste/drop, tampilkan arahan URL HTTPS; prioritaskan plain text saat clipboard
+juga membawa file. 189 tes frontend lulus. Ini bukan penambahan dukungan
+screenshot/attachment. Clipboard/drop Wayland asli masih perlu validasi native
+setelah build diizinkan.
