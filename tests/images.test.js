@@ -296,3 +296,28 @@ test('nested templates cannot carry unsanitized resource markup downstream', () 
   assert.ok(!output.includes('<template'));
   assert.ok(!output.includes('hidden.png'));
 });
+
+test('bulk consent is limited to URLs present at the time of approval', () => {
+  resetImagePolicy();
+  allowAllRemoteImages([REMOTE]);
+  const later = 'https://another-tracker.example/later.png';
+  assert.equal(isRemoteImageAllowed(REMOTE), true);
+  assert.equal(isRemoteImageAllowed(later), false);
+  const q = createQuill();
+  const sources = recordImageSources(() => q.insertEmbed(0, 'image', later, 'user'));
+  assert.deepEqual(sources.filter(isRemoteImageUrl), []);
+  assert.equal(q.root.querySelector('img').getAttribute('src'), IMAGE_PLACEHOLDER);
+  resetImagePolicy();
+});
+
+test('reveal helper never loads an image without explicit URL consent', () => {
+  resetImagePolicy();
+  const q = render('![blocked](' + REMOTE + ')\n');
+  const sources = recordImageSources(() => assert.equal(revealAllowedImages(q), 0));
+  assert.deepEqual(sources.filter(isRemoteImageUrl), []);
+  assert.equal(q.root.querySelector('img').getAttribute('src'), IMAGE_PLACEHOLDER);
+  allowRemoteImage(REMOTE);
+  assert.equal(revealAllowedImages(q), 1);
+  assert.equal(q.root.querySelector('img').getAttribute('src'), REMOTE);
+  resetImagePolicy();
+});

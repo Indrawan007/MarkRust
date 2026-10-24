@@ -164,3 +164,9 @@ M1/M2 tetap belum dinyatakan tuntas tanpa bukti runtime desktop.
 Subclass clipboard menyaring HTML sebelum parser Quill, termasuk kombinasi
 HTML + file. Sanitasi terpisah dari transformasi Markdown. Tes JS 151 lulus;
 uji clipboard OS/network tetap belum dilakukan. Ini belum menutup M3.
+
+### M3 parsial — persetujuan URL spesifik
+
+Izin Muat gambar dibatasi pada daftar URL saat klik, bukan seluruh URL masa
+depan pada dokumen. Helper reveal memeriksa izin sendiri. Tes integrasi paste
+sesudah consent ditambahkan; 154 tes JS lulus. Uji network/native tetap pending.

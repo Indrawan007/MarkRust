@@ -520,3 +520,28 @@ test('pemulihan tidak menimpa dokumen yang sedang kotor', async () => {
   assert.equal(await api.restoreDraftIfAny(), false);
   assert.equal(api.getMarkdown(), before);
 });
+
+test('gambar baru yang dipaste setelah Muat gambar tetap memerlukan izin', async () => {
+  nextAskResult = true;
+  await api.newDocument();
+  api.setMarkdown('![awal](https://images.example/approved.png)\n');
+  await api.loadRemoteImages();
+  assert.equal(api.quill.root.querySelector('img').getAttribute('src'),
+    'https://images.example/approved.png');
+  api.quill.setSelection(api.quill.getLength() - 1, 0, 'silent');
+  api.quill.clipboard.onCapturePaste({
+    defaultPrevented: false,
+    preventDefault() {},
+    clipboardData: {
+      files: [],
+      getData(type) { return type === 'text/html' ? '<img src="https://tracker.example/new.png">' : ''; }
+    }
+  });
+  const added = Array.from(api.quill.root.querySelectorAll('img'))
+    .find((img) => img.getAttribute('data-mr-src') === 'https://tracker.example/new.png');
+  assert.ok(added);
+  assert.ok(added.getAttribute('src').startsWith('data:'));
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  assert.equal(window.document.getElementById('sb-load-images').hidden, false);
+  assert.match(api.getMarkdown(), /https:\/\/tracker\.example\/new\.png/);
+});

@@ -183,3 +183,16 @@ seleksi, bold, user-source event, plaintext dan editor disabled.
 Baseline JS: **151/151 lulus**. Event clipboard dites dengan jsdom/Quill asli,
 bukan clipboard OS. Belum ada bukti network inspector webview nyata, uji upload
 file-only native, atau penegakan CSP penuh; checklist P03 tetap BELUM DIUJI.
+
+## Update batas persetujuan gambar
+
+Izin bulk tidak lagi berupa boolean yang membolehkan semua URL pada dokumen.
+Tombol Muat gambar mengizinkan snapshot daftar URL yang ada saat diklik saja;
+gambar baru dari paste berikutnya kembali diblokir. revealAllowedImages juga
+memeriksa allow-list sendiri sebelum menyetel src, bukan hanya percaya bahwa
+pemanggil telah meminta izin.
+
+Dua tes baru gagal sebelum perbaikan dan lulus sesudahnya. Tes integrasi
+menjaga alur approve -> paste URL baru -> placeholder + tombol izin tampil
+lagi. Baseline JS terbaru: **154/154 lulus**. Ini pembatasan izin aplikasi,
+bukan pembatasan host/redirect/DNS; webview network dan M3/CSP masih terbuka.

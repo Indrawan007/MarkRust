@@ -4,7 +4,7 @@
  * perilaku di webview Tauri (bukan tiruan yang bisa menyimpang).
  */
 import {
-  IMAGE_PLACEHOLDER, shouldBlockRemoteImage
+  IMAGE_PLACEHOLDER, shouldBlockRemoteImage, isRemoteImageAllowed
 } from './image-policy.js';
 
 const registered = new WeakSet();
@@ -101,7 +101,7 @@ export function revealAllowedImages(quill) {
   let count = 0;
   for (let i = 0; i < nodes.length; i++) {
     const original = nodes[i].getAttribute('data-mr-src');
-    if (!original) continue;
+    if (!original || !isRemoteImageAllowed(original)) continue;
     nodes[i].setAttribute('src', original);
     count++;
   }
