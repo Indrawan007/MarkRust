@@ -208,3 +208,35 @@ mencakup karakter kontrol dan entity HTML yang didekode parser inert.
 Baseline JS: **156/156 lulus**. URL asli tetap disimpan dalam atribut inert/model;
 perubahan ini tidak memperluas izin. Ini bukan validasi SSRF/DNS atau bukti
 network webview: native downloader dan CSP ketat tetap pekerjaan M3 terpisah.
+
+## M3 — Downloader native terbatas dan CSP gambar ketat
+
+Update ini menggantikan catatan lama bahwa CSP masih membuka `https:` untuk
+gambar. `img-src` desktop sekarang hanya self/data/blob; HTTP(S) langsung
+webview ditolak CSP. Browser fallback tanpa Tauri tetap memuat URL berizin
+secara langsung, jadi jaminan CSP ini khusus desktop native.
+
+Perintah `download_image` menerima satu URL setelah tindakan pengguna, bukan
+HTTP client umum. Kebijakan tahap pertama:
+- Hanya HTTPS port 443 tanpa kredensial; tidak mengikuti redirect; proxy OS
+  dimatikan. Tidak ada cookie jar atau header autentikasi dari webview.
+- Resolusi DNS sekali, IPv4 nonpublik/reserved ditolak, alamat IPv4 dipin ke
+  client TLS (host asli tetap untuk TLS/Host). IPv6 diabaikan; IPv6-only ditolak.
+- Maksimal 5 MiB input, batas connect 5 detik/request 15 detik. Resolver OS
+  sinkron belum punya timeout independen; operasi dijalankan di blocking pool,
+  bukan thread UI. DOWNLOAD try-lock membatasi satu download native sekaligus.
+- PNG/JPEG/GIF/WebP saja, Content-Type harus cocok daftar; isi harus lolos
+  decoder, maksimum 4096x4096 dan allocation limit 64 MiB. Re-encode PNG
+  menghindari penyajian SVG/markup mentah. Animasi menjadi satu frame.
+- Output PNG maksimal 8 MiB; cache URI frontend maksimal 16 MiB per dokumen,
+  paling banyak 20 URL per tindakan. Gagal memuat menampilkan error; placeholder
+  dipertahankan. Data hasil unduh harus PNG data URI, bukan URL backend bebas.
+- Original URL tetap pada Delta/Markdown. Cache direset saat dokumen berganti;
+  hasil download lama tidak diterapkan ke dokumen pengganti.
+
+Baseline JS: **159/159 lulus** (command path, cache/reset/model, dan CSP). Tes
+Rust baru memeriksa klasifikasi IPv4/URL serta decoder/re-encode. Ini belum
+bukti end-to-end SSRF/DNS/TLS/network pada tiga webview. Checklist P01–P03,
+pengujian HTTP hostile endpoints, timeout DNS dan audit routing lingkungan
+(private routing atas alamat publik) masih terbuka. M3 belum dinyatakan tuntas.
+Cargo.lock harus diselaraskan lagi dengan reqwest/base64/image sebelum --locked.

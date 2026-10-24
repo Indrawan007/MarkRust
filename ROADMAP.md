@@ -176,3 +176,10 @@ sesudah consent ditambahkan; 154 tes JS lulus. Uji network/native tetap pending.
 Deteksi sebelum render menutup bentuk HTTP(S) tanpa slash lengkap serta
 backslash/mixed slash, termasuk yang disamarkan dengan entity HTML. 156 tes JS
 lulus; verifikasi jaringan webview dan native downloader tetap belum selesai.
+
+### M3 — implementasi awal downloader native
+
+Perintah unduh HTTPS terbatas + pin DNS IPv4 publik + rasterisasi PNG lokal
+sudah diimplementasikan; https dihapus dari img-src desktop. 159 tes JS lulus.
+Redirect/HTTP/SVG/IPv6-only sengaja tidak didukung. DNS resolver OS dan uji
+end-to-end hostile network/webview masih terbuka; lihat STATUS-HANDOFF.md.

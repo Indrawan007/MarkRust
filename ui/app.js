@@ -27,7 +27,7 @@ import {
 } from './core/quill-setup.js';
 import {
   resetImagePolicy, allowRemoteImage, allowAllRemoteImages,
-  isRemoteImageAllowed
+  isRemoteImageAllowed, setImageDisplaySource
 } from './core/image-policy.js';
 import {
   getTauriApi, openWithTauri, saveWithTauri, readBrowserFile,
@@ -148,8 +148,9 @@ function boot() {
     const idx = pendingImageRange ? pendingImageRange.index
       : (quill.getSelection(true) || { index: 0 }).index;
     // URL dimasukkan sendiri lewat dialog => persetujuan eksplisit.
-    allowRemoteImage(clean);
+    if (!tauri) allowRemoteImage(clean);
     quill.insertEmbed(idx, 'image', clean, 'user');
+    if (tauri) loadImageUrls([clean]);
     quill.setSelection(idx + 1, 0, 'user');
     if (typeof imageDialog.close === 'function') imageDialog.close();
     else imageDialog.removeAttribute('open');
@@ -741,18 +742,39 @@ function boot() {
     }
   }
 
-  async function loadRemoteImages() {
-    const nodes = quill.root.querySelectorAll('img[data-mr-src]');
-    const urls = [];
-    for (let i = 0; i < nodes.length; i++) {
-      const u = nodes[i].getAttribute('data-mr-src');
-      if (u) urls.push(u);
+  let imageLoadInProgress = false;
+  async function loadImageUrls(urls) {
+    if (imageLoadInProgress) return 0;
+    const stamp = documentGeneration;
+    imageLoadInProgress = true;
+    btnLoadImages.disabled = true;
+    try {
+      const unique = [...new Set(urls)];
+      if (unique.length > 20) throw new Error('Maksimum 20 URL gambar per pemuatan');
+      if (tauri) {
+        for (const url of unique) {
+          const source = await tauri.core.invoke('download_image', { url });
+          if (stamp !== documentGeneration) return 0;
+          setImageDisplaySource(url, source);
+          revealAllowedImages(quill); // Keep successful items visible if a later download fails.
+        }
+      } else {
+        allowAllRemoteImages(unique); // Browser fallback; native CSP stays strict.
+      }
+      return revealAllowedImages(quill);
+    } catch (err) {
+      if (stamp === documentGeneration) await showError(tauri, String(err?.message || err));
+      return 0;
+    } finally {
+      imageLoadInProgress = false;
+      btnLoadImages.disabled = false;
+      updateStats();
     }
-    if (!urls.length) return 0;
-    allowAllRemoteImages(urls);
-    const revealed = revealAllowedImages(quill);
-    updateStats();
-    return revealed;
+  }
+  async function loadRemoteImages() {
+    const urls = Array.from(quill.root.querySelectorAll('img[data-mr-src]'))
+      .map((node) => node.getAttribute('data-mr-src')).filter((url) => !isRemoteImageAllowed(url));
+    return loadImageUrls(urls);
   }
 
   btnLoadImages.addEventListener('click', loadRemoteImages);

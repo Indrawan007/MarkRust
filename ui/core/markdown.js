@@ -7,7 +7,7 @@
  */
 
 import {
-  shouldBlockRemoteImage, isRemoteImageUrl, IMAGE_PLACEHOLDER
+  shouldBlockRemoteImage, isRemoteImageUrl, IMAGE_PLACEHOLDER, imageDisplaySource
 } from './image-policy.js';
 
 export function escapeHtml(s) {
@@ -90,6 +90,9 @@ function sanitizeUntrustedHtml(root) {
     if (shouldBlockRemoteImage(src)) {
       img.setAttribute('data-mr-src', src);
       img.setAttribute('src', IMAGE_PLACEHOLDER);
+    } else if (isRemoteImageUrl(src) && imageDisplaySource(src) !== src) {
+      img.setAttribute('data-mr-src', src);
+      img.setAttribute('src', imageDisplaySource(src));
     }
   }
 }

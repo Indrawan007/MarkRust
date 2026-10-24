@@ -40,6 +40,7 @@ window.__TAURI__ = {
   core: {
     invoke: async (cmd, args) => {
       tauriCalls.push([cmd, args]);
+      if (cmd === 'download_image') return 'data:image/png;base64,AAAA';
       if (cmd === 'write_recovery') {
         if (failRecovery) throw new Error('disk full');
         recoveryContents = args.contents;
@@ -372,7 +373,7 @@ test('Muat gambar mengembalikan src asli dan menyembunyikan tombol', async () =>
   const n = await api.loadRemoteImages();
   assert.equal(n, 1);
   const img = api.quill.root.querySelector('img');
-  assert.equal(img.getAttribute('src'), 'https://tracker.example/pixel.png');
+  assert.equal(img.getAttribute('src'), 'data:image/png;base64,AAAA');
   assert.equal(window.document.getElementById('sb-load-images').hidden, true);
 });
 
@@ -385,7 +386,7 @@ test('setMarkdown mereset izin gambar untuk dokumen berikutnya', async () => {
   api.setMarkdown('![foto](https://tracker.example/pixel.png)\n');
   await api.loadRemoteImages();
   assert.equal(api.quill.root.querySelector('img').getAttribute('src'),
-    'https://tracker.example/pixel.png');
+    'data:image/png;base64,AAAA');
 
   api.setMarkdown('![baru](https://tracker.example/lain.png)\n');
   const img = api.quill.root.querySelector('img');
@@ -527,7 +528,7 @@ test('gambar baru yang dipaste setelah Muat gambar tetap memerlukan izin', async
   api.setMarkdown('![awal](https://images.example/approved.png)\n');
   await api.loadRemoteImages();
   assert.equal(api.quill.root.querySelector('img').getAttribute('src'),
-    'https://images.example/approved.png');
+    'data:image/png;base64,AAAA');
   api.quill.setSelection(api.quill.getLength() - 1, 0, 'silent');
   api.quill.clipboard.onCapturePaste({
     defaultPrevented: false,
@@ -544,4 +545,16 @@ test('gambar baru yang dipaste setelah Muat gambar tetap memerlukan izin', async
   await new Promise((resolve) => setTimeout(resolve, 200));
   assert.equal(window.document.getElementById('sb-load-images').hidden, false);
   assert.match(api.getMarkdown(), /https:\/\/tracker\.example\/new\.png/);
+});
+
+test('native image loading uses restricted command and retains Markdown URL', async () => {
+  nextAskResult = true;
+  await api.newDocument();
+  api.setMarkdown('![native](https://images.example/native.png)\n');
+  const before = tauriCalls.length;
+  await api.loadRemoteImages();
+  assert.ok(tauriCalls.slice(before).some(([cmd, args]) =>
+    cmd === 'download_image' && args.url === 'https://images.example/native.png'));
+  assert.equal(api.quill.root.querySelector('img').getAttribute('src'), 'data:image/png;base64,AAAA');
+  assert.match(api.getMarkdown(), /https:\/\/images\.example\/native\.png/);
 });

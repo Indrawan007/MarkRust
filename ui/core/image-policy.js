@@ -17,6 +17,8 @@
  */
 
 const allowedUrls = new Set();
+const displaySources = new Map();
+let cachedBytes = 0;
 
 /** Placeholder lokal (data URI) — tidak pernah menyentuh jaringan. */
 export const IMAGE_PLACEHOLDER =
@@ -54,6 +56,8 @@ export function isPlaceholderUrl(url) {
 
 export function resetImagePolicy() {
   allowedUrls.clear();
+  displaySources.clear();
+  cachedBytes = 0;
 }
 
 /** Izinkan satu URL (dipakai saat pengguna menyisipkan gambar sendiri). */
@@ -79,3 +83,14 @@ export function allowedUrlCount() {
 export function shouldBlockRemoteImage(url) {
   return isRemoteImageUrl(url) && !isRemoteImageAllowed(url);
 }
+
+/** Native downloads are PNG data URIs; never expose a backend-returned URL. */
+export function setImageDisplaySource(url, source) {
+  if (!/^data:image\/png;base64,[A-Za-z0-9+/]+=*$/.test(source)) throw new Error('Hasil gambar native tidak valid');
+  const next = cachedBytes - (displaySources.get(url)?.length || 0) + source.length;
+  if (next > 16 * 1024 * 1024) throw new Error('Cache gambar dokumen melebihi 16 MB');
+  cachedBytes = next;
+  displaySources.set(url, source);
+  allowRemoteImage(url);
+}
+export function imageDisplaySource(url) { return displaySources.get(url) || url; }

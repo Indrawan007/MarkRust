@@ -355,3 +355,27 @@ test('HTML entities and backslash URLs remain inert after normalization', () => 
     assert.equal(img.getAttribute('data-mr-src'), original);
   }
 });
+
+test('native raster cache displays local PNG but preserves original URL through rerender', async () => {
+  const { setImageDisplaySource } = await import('../ui/core/image-policy.js');
+  resetImagePolicy();
+  const png = 'data:image/png;base64,AAAA';
+  setImageDisplaySource(REMOTE, png);
+  const q = render('![native](' + REMOTE + ')\n');
+  assert.equal(q.root.querySelector('img').getAttribute('src'), png);
+  assert.equal(q.root.querySelector('img').getAttribute('data-mr-src'), REMOTE);
+  assert.ok(q.getContents().ops.some((op) => op.insert?.image === REMOTE));
+  assert.throws(() => setImageDisplaySource(REMOTE, 'https://unexpected.example/x'), /tidak valid/);
+  resetImagePolicy();
+  const next = render('![native](' + REMOTE + ')\n');
+  assert.equal(next.root.querySelector('img').getAttribute('src'), IMAGE_PLACEHOLDER);
+});
+
+test('native CSP has no direct HTTP(S) image sources', async () => {
+  const { readFileSync } = await import('node:fs');
+  const config = JSON.parse(readFileSync(new URL('../src-tauri/tauri.conf.json', import.meta.url), 'utf8'));
+  const directive = config.app.security.csp.split(';').find((item) => item.trim().startsWith('img-src '));
+  assert.ok(directive);
+  assert.ok(!/https?:|\*/.test(directive));
+  assert.match(directive, /data:/);
+});

@@ -4,7 +4,7 @@
  * perilaku di webview Tauri (bukan tiruan yang bisa menyimpang).
  */
 import {
-  IMAGE_PLACEHOLDER, shouldBlockRemoteImage, isRemoteImageAllowed
+  IMAGE_PLACEHOLDER, shouldBlockRemoteImage, isRemoteImageAllowed, imageDisplaySource
 } from './image-policy.js';
 
 const registered = new WeakSet();
@@ -58,8 +58,9 @@ export function registerSafeImageBlot(Quill) {
       const blocked = shouldBlockRemoteImage(url);
       // BaseImage.create immediately sets src, even on a detached element.
       // Never pass the remote URL to it before the policy decision.
-      const node = super.create(blocked ? IMAGE_PLACEHOLDER : value);
-      if (blocked) {
+      const display = blocked ? IMAGE_PLACEHOLDER : imageDisplaySource(url);
+      const node = super.create(display);
+      if (blocked || display !== url) {
         node.setAttribute('data-mr-src', url);
       }
       return node;
@@ -102,7 +103,7 @@ export function revealAllowedImages(quill) {
   for (let i = 0; i < nodes.length; i++) {
     const original = nodes[i].getAttribute('data-mr-src');
     if (!original || !isRemoteImageAllowed(original)) continue;
-    nodes[i].setAttribute('src', original);
+    nodes[i].setAttribute('src', imageDisplaySource(original));
     count++;
   }
   return count;

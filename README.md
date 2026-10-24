@@ -372,3 +372,18 @@ Baca [STATUS-HANDOFF.md](STATUS-HANDOFF.md) untuk status implementasi,
 verifikasi, risiko terbuka dan peta kode. Gunakan
 [DESKTOP-TEST-CHECKLIST.md](DESKTOP-TEST-CHECKLIST.md) untuk pengujian native;
 status awalnya belum diuji, bukan otomatis lulus karena CI hijau.
+
+### Update M3: gambar desktop melalui downloader native
+
+Catatan lama CSP `img-src https:` di atas sudah digantikan: pada desktop,
+HTTP(S) langsung tidak lagi diizinkan di img-src. Tombol Muat gambar dan dialog
+sisip menggunakan downloader Rust terbatas, lalu menampilkan PNG data URI.
+URL asli tetap dipertahankan saat menyimpan Markdown. Browser biasa masih
+menggunakan pemuatan URL langsung atas izin.
+
+Tahap awal hanya mendukung HTTPS port 443, IPv4 publik, PNG/JPEG/GIF/WebP;
+redirect, SVG dan host IPv6-only ditolak. GIF/WebP animasi menjadi satu frame.
+Batas input 5 MiB, dimensi 4096x4096, output PNG 8 MiB, cache dokumen 16 MiB.
+Perubahan format ini dapat menghilangkan animasi/metadata; bukan pengunduh
+berkas asli. Detail batas keamanan dan pekerjaan uji yang tersisa ada di
+STATUS-HANDOFF.md.
