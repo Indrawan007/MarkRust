@@ -4,6 +4,22 @@ Tanggal: 24 Oktober 2026. Branch: `arena/bcbf3e21-markrust`.
 Dokumen ini adalah titik masuk untuk melanjutkan pekerjaan; baca bersama
 [ROADMAP.md](ROADMAP.md) dan [DESKTOP-TEST-CHECKLIST.md](DESKTOP-TEST-CHECKLIST.md).
 
+## Koreksi scope — acuan utama untuk pekerjaan berikutnya
+
+Pengguna menegaskan aplikasi **hanya untuk pribadi di Arch Linux + Hyprland**.
+Pernyataan rilis publik/lintas OS di riwayat laporan ini adalah konteks rencana
+lama, bukan requirement aktif. ROADMAP.md sudah diganti sesuai target tersebut.
+
+Prioritas berikutnya: build lokal Arch dan uji GUI Wayland/Hyprland, lalu alur
+harian/recovery dan jaringan WebKitGTK. Windows/macOS, installer lintas OS,
+beta publik, signing/notarization dan keputusan lisensi proyek bukan gerbang
+pemakaian pribadi. Tidak ada klaim bahwa uji Arch/Hyprland sudah dijalankan.
+
+Status terbaru otomatis: 159 tes JS dan CI Rust lintas OS pernah hijau; tetap
+perlu verifikasi native pada mesin pengguna. Jangan memperpanjang hardening
+teoretis tanpa menguji aplikasi nyata. Versi dependency dan perilaku portal
+harus diperiksa pada lingkungan Arch yang digunakan, bukan diasumsikan.
+
 ## Ringkasan jujur
 
 Editor dan recovery native sudah diimplementasikan. M1a–M1c memiliki tes otomatis
@@ -12,8 +28,8 @@ lanjutan menambah pengaman operasi async dan membawa jumlah tes JS menjadi
 **144 lulus**. CI audit `40074055940` pada commit `b931d22` juga lulus: Node serta
 build/test Rust Linux, Windows, macOS.
 
-**Belum siap dinyatakan rilis publik. M1 belum ditutup secara keseluruhan, M2
-belum dijalankan di webview desktop nyata.** Jangan menyamakan build CI dengan
+**Kesiapan pemakaian pribadi belum diverifikasi di Arch/Hyprland pengguna.
+Uji webview desktop nyata masih diperlukan.** Jangan menyamakan build CI dengan
 uji GUI, installer, atau jaminan tidak kehilangan data.
 
 ## Sudah selesai di kode
@@ -94,7 +110,7 @@ Desain lanjutan: downloader native terbatas dengan validasi skema/DNS/IP,
 redirect, ukuran/timeouts, format gambar aman; tidak membuka HTTP client umum
 ke webview. Baru setelah itu hapus https dari CSP.
 
-### 4. Build/distribusi (M4)
+### 4. Build/instalasi lokal (scope terbaru)
 
 Cargo.lock belum diselaraskan dengan dependency baru secara lokal (dialog,
 serde_json, fs2). CI build tanpa --locked menyelesaikan dependency dan menyimpan
@@ -102,8 +118,9 @@ artifact cargo-lock. Perbarui lockfile lalu gunakan --locked setelah diperoleh.
 Download artifact sandbox pernah terhalang host blob GitHub. Jangan edit lock
 manual atau mengklaim build reproducible sebelum ini beres.
 
-LICENSE proyek belum dipilih pemilik; tidak boleh dipilih atas namanya.
-Installer, signing/notarization, upgrade/uninstall, kebijakan data belum diuji.
+Untuk penggunaan pribadi, LICENSE proyek dan signing/notarization bukan blocker.
+Jangan memilih lisensi atas nama pemilik. Prioritaskan binary lokal/launcher,
+update/rollback dan backup data; installer lintas OS tidak diperlukan.
 
 ### 5. Sesudah fondasi stabil
 

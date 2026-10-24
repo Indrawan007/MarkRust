@@ -1,5 +1,9 @@
 # MarkRust
 
+**Target: penggunaan pribadi di Arch Linux + Hyprland (Wayland).**
+Bukan rencana rilis publik lintas platform. CI OS lain yang sudah ada hanya
+verifikasi tambahan; panduan utama ada di [ROADMAP.md](ROADMAP.md).
+
 WYSIWYG Markdown editor desktop berbasis **Rust + Tauri v2**, dengan frontend vanilla
 HTML/CSS/JS (tanpa Node, tanpa bundler, tanpa framework).
 
@@ -312,7 +316,7 @@ sebagai cadangan utama. Lokasi ditentukan Tauri untuk OS pengguna; frontend
 ## Roadmap pengembangan
 
 Lihat [ROADMAP.md](ROADMAP.md) untuk urutan prioritas, cakupan, dan kriteria
-kelulusan tiap tahap menuju rilis publik.
+kelulusan tiap tahap untuk pemakaian pribadi di Arch/Hyprland.
 
 ### M1a — Isolasi recovery antar-instance
 

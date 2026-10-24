@@ -1,23 +1,21 @@
-# Checklist validasi desktop MarkRust (M2)
+# Checklist validasi pribadi — Arch + Hyprland
 
 Status awal: **BELUM DIJALANKAN di aplikasi native**. Tes jsdom, unit Rust,
 subprocess, dan build CI tidak menggantikan checklist ini.
 
 ## Cara mencatat
 
-Salin tabel untuk masing-masing OS: Windows, macOS, Linux. Catat commit,
-versi OS, versi WebView/runtime, arsitektur, tanggal, dan nama penguji.
+Target wajib hanya Arch Linux + Hyprland/Wayland. Catat commit, kernel,
+versi Hyprland/WebKitGTK/GTK, GPU/driver, scaling, arsitektur, tanggal dan penguji.
 Status tiap kasus: PASS / FAIL / BLOCKED / BELUM DIUJI. Sertakan screenshot,
 log tanpa isi dokumen privat, serta langkah reproduksi untuk FAIL.
 Gunakan dokumen sintetis dan folder uji, bukan berkas kerja satu-satunya.
 
 | Lingkungan | Commit | OS/runtime | Penguji/tanggal | Hasil |
 |---|---|---|---|---|
-| Windows | — | — | — | BELUM DIUJI |
-| macOS | — | — | — | BELUM DIUJI |
-| Linux | — | — | — | BELUM DIUJI |
+| Arch + Hyprland (Wayland) | — | — | — | BELUM DIUJI |
 
-## Matriks kasus wajib (ulangi pada tiap OS)
+## Matriks kasus pada Arch/Hyprland
 
 | ID | Langkah | Hasil yang diharapkan | Status / bukti |
 |---|---|---|---|
@@ -34,7 +32,7 @@ Gunakan dokumen sintetis dan folder uji, bukan berkas kerja satu-satunya.
 | C03 | Tutup kotor tanpa simpan setelah backup sukses, buka lagi | Draf ditawarkan dan dapat dipulihkan | BELUM DIUJI |
 | C04 | Recovery gagal (disk penuh/izin), lalu tutup tanpa simpan | Peringatan terlihat; handler close menahan penutupan | BELUM DIUJI |
 | C05 | Close berulang saat dialog masih terbuka | Tidak ada error tak tertangani/dialog berantai yang merusak state | BELUM DIUJI |
-| C06 | macOS Cmd+Q dan Dock Quit (N/A di OS lain) | Catat apakah handler dipanggil; setelah restart backup tersedia; jangan asumsikan semua jalur dicegat | BELUM DIUJI |
+| C06 | Tutup lewat keybind Hyprland yang biasa dipakai | Catat apakah graceful close atau kill; recovery setelah restart sesuai batas yang didokumentasikan | BELUM DIUJI |
 | R01 | Edit, tunggu backup; force-kill; buka lagi | Recovery terbaru valid dipulihkan, path/dirty benar | BELUM DIUJI |
 | R02 | Ketik terus >3 detik, force-kill | Snapshot sudah ada sebelum berhenti mengetik; ukur kehilangan terakhir | BELUM DIUJI |
 | R03 | Hapus semua isi, tunggu backup, force-kill | Draf kosong tetap dapat dipulihkan | BELUM DIUJI |
@@ -51,10 +49,10 @@ Gunakan dokumen sintetis dan folder uji, bukan berkas kerja satu-satunya.
 ## Gerbang kelulusan
 
 - Tidak ada FAIL terbuka yang menyebabkan kehilangan data atau kebocoran jaringan.
-- Setiap kasus kritis memiliki bukti pada tiga OS; BLOCKED bukan PASS.
+- Setiap kasus kritis memiliki bukti pada Arch/Hyprland; BLOCKED bukan PASS.
 - Temuan baru masuk laporan handoff dan diikuti tes regresi bila bisa diotomasi.
-- Installer, signing, upgrade/uninstall diuji terpisah pada M4; menjalankan
-  build development tidak membuktikan installer siap rilis.
+- Uji binary lokal dan launcher/update/rollback bila dipakai; installer lintas
+  OS dan signing/notarization tidak dibutuhkan untuk target pribadi ini.
 
 ## Tambahan M3 native downloader (belum diuji manual)
 
@@ -76,3 +74,15 @@ tertahan: error harus kembali, UI tetap responsif, retry tidak menambah worker
 DNS selama lookup lama belum selesai. Lookup OS bukan dibatalkan; pemuatan
 hostname dapat tetap ditolak sampai resolver selesai/proses diulang. Pengujian
 ini belum dijalankan di webview/OS nyata.
+
+
+## Tambahan khusus Hyprland (belum diuji)
+
+- H01: clipboard/copy-paste antara MarkRust dan aplikasi Wayland lain; uji
+  plain text, rich HTML, gambar/file sesuai fitur yang benar-benar digunakan.
+- H02: fokus setelah dialog gambar/Buka/Simpan; floating/tiled/fullscreen.
+- H03: shortcut aplikasi tidak berbenturan dengan keybind Hyprland pengguna.
+- H04: fractional scaling/font/ukuran dialog pada monitor yang digunakan.
+- H05: catat backend GTK/Wayland/XWayland dan portal file chooser yang benar-benar
+  aktif. Bila gagal, kumpulkan log dahulu; jangan menerapkan workaround global
+  atau mengganti konfigurasi Hyprland tanpa persetujuan.

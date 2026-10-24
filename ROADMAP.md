@@ -1,199 +1,83 @@
-# Roadmap MarkRust
+# Roadmap MarkRust — penggunaan pribadi di Arch + Hyprland
 
-Tanggal acuan: 24 Oktober 2026. Roadmap ini berurutan menurut risiko, bukan
-janji tanggal rilis. Selesaikan kriteria keluar tiap tahap sebelum melanjutkan.
+## Scope yang benar
 
-## Titik awal
+MarkRust hanya untuk penggunaan pribadi pada **Arch Linux + Hyprland (Wayland)**.
+Bukan produk publik atau aplikasi yang wajib didukung lintas platform. Scope ini
+menggantikan rencana rilis publik sebelumnya.
 
-MarkRust sudah memiliki editor WYSIWYG/Markdown, operasi berkas native,
-shortcut/menu, pemblokiran gambar remote berbasis izin, dan recovery otomatis
-ke disk (5 versi, fallback dari snapshot rusak). Browser memakai localStorage.
+CI Windows/macOS yang sudah ada merupakan bukti regresi tambahan, bukan syarat
+kelulusan. Tidak perlu beta publik, signing/notarization, installer Windows/macOS,
+atau keputusan lisensi sebagai gerbang pemakaian sendiri. Kewajiban lisensi
+komponen pihak ketiga tetap berlaku bila kelak didistribusikan.
 
-Verifikasi pada commit `bf4b3c4`: 138 tes JavaScript lulus; build dan tes recovery
-Rust lulus di CI Linux, Windows, macOS. Ini belum merupakan verifikasi manual
-webview native atau installer. Posisi produk: kandidat uji desktop internal,
-belum siap rilis publik.
+## Sudah diimplementasikan
 
-## M1 — Integritas recovery dan lifecycle (prioritas kritis)
+- Editor WYSIWYG/Markdown, konversi, statistik, menu, shortcut dan operasi berkas.
+- Recovery disk: versi snapshot, lock antar-instance, quota, pemilih recovery,
+  serta perlindungan race saat simpan/buka/baru/drop.
+- Gambar remote atas izin: sanitasi/clipboard, downloader Rust terbatas,
+  DNS timeout, rasterisasi PNG lokal dan CSP gambar tanpa HTTPS langsung.
+- 159 tes JavaScript; build/test Rust pernah lulus di CI tiga OS. Bukti CI
+  bukan bukti aplikasi berjalan di Arch/Hyprland pengguna.
 
-**Tujuan:** satu instance/dokumen tidak menghapus cadangan milik yang lain.
+## Tahap 1 — Build dan jalankan di Arch/Hyprland (prioritas berikutnya)
 
-Pekerjaan:
-- Tentukan identitas sesi/dokumen recovery; simpan versi per identitas.
-- Pisahkan lifecycle simpan, buang, dan pemulihan; hapus hanya recovery terkait.
-- Atur deteksi sesi aktif/stale tanpa menganggap snapshot instance lain sebagai
-  sisa crash. Tentukan penanganan lock basi setelah crash.
-- Batasi retensi per dokumen serta total disk; jangan memangkas draf aktif
-  secara diam-diam. Tetap tampilkan kegagalan tulis dan cleanup.
-- Uji dua instance secara bersamaan, tabrakan operasi, crash/restart, draf
-  kosong, kuota/disk penuh, dan snapshot rusak.
+- Siapkan toolchain Rust/Tauri dan dependency Arch yang sesuai versi saat ini.
+- Selaraskan Cargo.lock lewat Cargo; verifikasi build terkunci.
+- Build binary lokal; jalankan di sesi Hyprland pengguna. Catat versi Arch,
+  kernel, Hyprland, WebKitGTK, GTK, GPU/driver dan commit uji.
+- Periksa dialog berkas/fokus window dan backend portal yang benar-benar dipakai.
+  Jangan memasang backend tambahan atau workaround global tanpa bukti kebutuhan.
 
-**Kriteria keluar:** dua instance dapat mengedit dan menyimpan dokumen berbeda
-secara bersamaan tanpa saling membersihkan recovery; setelah salah satunya
-crash, drafnya tetap dapat dipulihkan. Draf aktif tidak hilang akibat pruning.
+**Selesai bila:** binary lokal dapat dibuka dan digunakan pada mesin pengguna,
+atau blocker lingkungan telah direproduksi dengan log yang jelas.
 
-**Bukan cakupan:** recent files atau autosave ke berkas asli.
+## Tahap 2 — Uji alur harian dan integritas tulisan
 
-## M2 — Validasi desktop nyata (prioritas tinggi; bergantung M1)
+Gunakan DESKTOP-TEST-CHECKLIST.md khusus Arch/Hyprland:
+- Buka/Simpan/Simpan Sebagai, Unicode/spasi, izin file, batal/gagal dialog.
+- Clipboard Wayland, seleksi, shortcut vs keybind compositor, fokus dan scaling.
+- Close, dua instance, crash/restart, recovery kosong/rusak dan quota gagal.
+- Pastikan perubahan tertunda tidak menimpa dokumen terbaru.
 
-**Tujuan:** membuktikan perilaku runtime, bukan hanya build/tes mock.
+**Selesai bila:** tidak ada blocker kehilangan data untuk alur pribadi yang
+benar-benar dipakai; semua kasus kritis memiliki hasil native, bukan asumsi CI.
+Pemilih versi manual dan pengelolaan recovery stale dapat menyusul kecuali
+pengujian membuktikan keduanya perlu untuk mengamankan data.
 
-Pekerjaan:
-- Buat checklist manual Linux, Windows, macOS dengan versi OS dan commit uji.
-- Uji Baru/Buka/Simpan/Simpan Sebagai, path Unicode/spasi, file read-only,
-  kegagalan tulis, dan berkas mendekati batas ukuran.
-- Uji close/X, Alt+F4, Cmd+Q/Dock Quit, simpan batal/gagal, dan permintaan
-  tutup berulang. Audit permission dan kegagalan registrasi listener native.
-- Uji ketikan selama dialog/write tertunda, pergantian dokumen, force-quit,
-  restart, serta migrasi draf localStorage.
-- Catat hasil pass/fail/belum diuji dan perbaiki semua kegagalan kehilangan data.
+## Tahap 3 — Verifikasi gambar/jaringan pada WebKitGTK
 
-**Kriteria keluar:** alur kritis lulus pada ketiga OS dengan bukti uji native;
-tidak ada blocker kehilangan data yang diketahui. Build CI saja tidak cukup.
+- Amati request sebelum/sesudah izin pada Markdown dan clipboard nyata.
+- Verifikasi penolakan URL privat, redirect, payload rusak/terlalu besar.
+- Pastikan CSP tetap menolak sumber jaringan langsung; catat batas HTTPS/443,
+  IPv4, format gambar dan animasi yang memang tidak didukung.
 
-## M3 — Privasi gambar ditegakkan lintas lapisan (prioritas tinggi)
+**Selesai bila:** perilaku nyata sesuai kebijakan untuk penggunaan pribadi;
+blokir/nonaktifkan fitur bila ada temuan keamanan yang belum diperbaiki.
+Tes TLS/DNS adversarial lebih lanjut dilakukan berdasarkan risiko, bukan sebagai
+alasan menunda uji aplikasi nyata tanpa batas.
 
-**Tujuan:** hilangkan izin gambar jaringan langsung dari CSP tanpa membuka
-HTTP client umum ke webview.
+## Tahap 4 — Instalasi lokal yang praktis
 
-Pekerjaan:
-- Rancang perintah unduh gambar terbatas dengan persetujuan eksplisit pengguna.
-- Validasi skema/host/port, DNS dan IP tujuan, termasuk setiap redirect; blokir
-  loopback, alamat privat/link-local, IPv6 ekuivalen, serta DNS rebinding.
-- Batasi waktu, redirect, ukuran respons secara streaming, dan jumlah request.
-- Validasi tipe serta konten gambar; tentukan format aman (jangan menganggap
-  semua `image/*`, khususnya SVG, otomatis aman). Jangan kirim cookie/kredensial.
-- Sajikan hasil sebagai sumber lokal/data yang aman; URL Markdown asli tetap
-  dipertahankan. Hapus `https:` dari `img-src` setelah jalur ini berfungsi.
-- Uji Markdown/HTML berbahaya, clipboard, protocol-relative URL, redirect ke
-  jaringan privat, dan nol request sebelum izin memakai browser/webview nyata.
+- Pilih binary lokal atau paket Arch/PKGBUILD bila diperlukan; bukan installer
+  lintas OS. Tentukan folder instalasi dan .desktop/icon untuk launcher Hyprland.
+- Catat cara update, rollback dan backup direktori data/recovery.
+- Nyatakan known issues dan langkah build/jalankan yang terbukti di mesin sendiri.
 
-**Kriteria keluar:** dokumen tak dipercaya tidak dapat memicu request gambar
-langsung; pemuatan berizin tetap berfungsi; round-trip URL/alt terjaga;
-request privat ditolak, termasuk setelah redirect/DNS resolution.
+**Selesai bila:** aplikasi mudah dibuka, diperbarui dan dipulihkan pada mesin
+pengguna. Tidak membutuhkan rilis publik, auto-updater atau infrastruktur signing.
 
-**Catatan:** M3 dapat dikerjakan setelah fondasi M1 stabil, tetapi harus selesai
-sebelum mengklaim privasi jaringan yang ditegakkan oleh CSP.
+## Opsional setelah dipakai harian
 
-## M4 — Build reproducible dan kesiapan distribusi
+Autosave berkas asli (opt-in + deteksi konflik), recent files, pemilih versi
+recovery, font/lebar editor, tema dan optimasi dokumen besar. Prioritaskan
+berdasarkan kebutuhan nyata pengguna, bukan kelengkapan produk publik.
 
-**Tujuan:** orang lain dapat membangun dan memasang versi yang sama.
+## Aturan pelaksanaan
 
-Pekerjaan:
-- Perbarui dan commit Cargo.lock, kemudian aktifkan build/test `--locked` di CI.
-- Audit dependency, izin Tauri, dan kebijakan penyertaan komponen vendor.
-- Pemilik proyek memilih lisensi; tambahkan LICENSE dan pemberitahuan vendor.
-- Buat kandidat bundel, uji install/launch/upgrade/uninstall di tiga OS; verifikasi
-  apakah recovery/data pengguna tetap dipertahankan sesuai kebijakan.
-- Tentukan signing/notarization, keterbatasan platform, dan kanal distribusi.
-- Buat release notes, known issues, serta langkah pemulihan dan rollback.
-
-**Kriteria keluar:** dependency terkunci; lisensi jelas; kandidat installer
-teruji; status signing dan batasan distribusi dinyatakan secara terbuka.
-
-## M5 — Beta terbatas dan gerbang rilis
-
-**Tujuan:** memperoleh bukti dari pemakaian nyata sebelum rilis publik.
-
-Pekerjaan:
-- Rilis kandidat kepada kelompok penguji kecil dengan checklist dan format bug.
-- Uji dokumen nyata dan batas konversi Markdown; prioritaskan kehilangan data,
-  akses filesystem, kebocoran jaringan, dan recovery sebelum polish UI.
-- Triase bug menurut dampak; dokumentasikan batasan yang diterima.
-
-**Kriteria keluar:** M1–M4 selesai; tidak ada blocker data/security terbuka;
-masalah mayor sudah diperbaiki atau cakupan berisiko dinonaktifkan; bukti uji,
-known issues, dan catatan rilis tersedia. Beta tidak otomatis berarti stabil.
-
-## Setelah fondasi stabil (bukan syarat rilis pertama)
-
-1. **Autosave berkas asli, opt-in:** hanya pada path yang sudah dipilih; deteksi
-   perubahan eksternal sebelum overwrite, UI konflik, backup/recovery tetap ada.
-2. **Pemilih versi recovery:** tampilkan waktu/dokumen dan pratinjau sebelum
-   restore; jangan menimpa tulisan aktif tanpa konfirmasi.
-3. **Recent files:** tangani path hilang/berpindah dan privasi daftar berkas.
-4. **Polish editor:** aksesibilitas keyboard/fokus, dokumen besar, font/lebar,
-   tema, dan perbaikan fidelity konversi berdasarkan kasus nyata.
-
-## Prinsip pelaksanaan
-
-- Satu milestone per putaran; perubahan kecil dengan tes regresi untuk bug.
-- Laporkan terpisah: tes otomatis, build CI, uji runtime native, uji installer.
-- Jangan klaim nol kehilangan data atau keamanan total; nyatakan batasnya.
-- Jangan autosave menimpa berkas asli tanpa persetujuan dan kontrol konflik.
-- Evaluasi ulang prioritas bila pengujian menemukan risiko data/security baru.
-- Update roadmap berdasarkan hasil, bukan menambahkan fitur sebelum gerbang
-  tahap sebelumnya terpenuhi.
-
-## Catatan pelaksanaan M1
-
-- M1a diimplementasikan: direktori sesi + lock eksklusif OS, adopsi sesi
-  terbengkalai setelah lock terlepas, dan perlindungan recovery v1 dengan lock.
-- Belum menutup seluruh M1: batas disk global, pemilihan beberapa recovery,
-  serta bukti pengujian dua proses desktop nyata masih diperlukan.
-
-### Pelaksanaan M1b
-
-- Batas penerimaan recovery 256 MiB lintas sesi, dilindungi lock OS antar-proses;
-  snapshot baru ditolak pada batas tanpa menghapus recovery milik sesi lain.
-- Temporary files dan recovery v1 ikut dihitung; kegagalan pruning tidak lagi
-  diabaikan. Pengguna tetap perlu menyimpan berkas bila cadangan gagal.
-- Ditambahkan tes proses anak yang dihentikan paksa untuk memverifikasi pelepasan
-  lock OS dan pemulihan snapshot.
-- Masih tersisa: UI memilih beberapa recovery, pengelolaan sesi/dokumen lebih
-  lengkap, dan checklist dua aplikasi desktop nyata (M2). Jangan tandai M1/M2
-  selesai hanya berdasarkan tes subprocess.
-
-### Pelaksanaan M1c
-
-- Pemilih startup untuk beberapa recovery, label path/waktu, batal tanpa hapus.
-- Pemeriksaan ulang lock saat pemilihan dan validasi ID di backend.
-- Tes DOM untuk pemilihan/batal dan path yang mengandung markup; tes ID Rust.
-- M1/M2 belum ditutup: tetap diperlukan uji dialog/webview desktop nyata,
-  pengelolaan recovery rusak dan versi manual, serta audit lifecycle dokumen.
-
-### Audit lifecycle & handoff
-
-Guard revisi ditambahkan pada Baru/Buka/drop setelah operasi async; restore
-menolak dokumen kotor. 144 tes JS lulus. Hasil, batas terbuka dan langkah lanjut
-ada di STATUS-HANDOFF.md; matriks uji native ada di DESKTOP-TEST-CHECKLIST.md.
-M1/M2 tetap belum dinyatakan tuntas tanpa bukti runtime desktop.
-
-### M3 parsial — clipboard HTML
-
-Subclass clipboard menyaring HTML sebelum parser Quill, termasuk kombinasi
-HTML + file. Sanitasi terpisah dari transformasi Markdown. Tes JS 151 lulus;
-uji clipboard OS/network tetap belum dilakukan. Ini belum menutup M3.
-
-### M3 parsial — persetujuan URL spesifik
-
-Izin Muat gambar dibatasi pada daftar URL saat klik, bukan seluruh URL masa
-depan pada dokumen. Helper reveal memeriksa izin sendiri. Tes integrasi paste
-sesudah consent ditambahkan; 154 tes JS lulus. Uji network/native tetap pending.
-
-### M3 parsial — variasi URL jaringan
-
-Deteksi sebelum render menutup bentuk HTTP(S) tanpa slash lengkap serta
-backslash/mixed slash, termasuk yang disamarkan dengan entity HTML. 156 tes JS
-lulus; verifikasi jaringan webview dan native downloader tetap belum selesai.
-
-### M3 — implementasi awal downloader native
-
-Perintah unduh HTTPS terbatas + pin DNS IPv4 publik + rasterisasi PNG lokal
-sudah diimplementasikan; https dihapus dari img-src desktop. 159 tes JS lulus.
-Redirect/HTTP/SVG/IPv6-only sengaja tidak didukung. DNS resolver OS dan uji
-end-to-end hostile network/webview masih terbuka; lihat STATUS-HANDOFF.md.
-
-### M3 parsial — tenggat DNS
-
-Caller lookup DNS kini memiliki deadline 5 detik dan maksimum satu worker DNS
-tertahan per proses. Retry ditolak selama lookup lama belum selesai; OS lookup
-tidak dibatalkan paksa. Tes Rust menggunakan resolver injeksi dan channel.
-Verifikasi hostile-network/webview nyata tetap diperlukan.
-
-### M3 parsial — tes transport hostile lokal
-
-Tes Rust ditambahkan untuk Content-Type/payload rusak, oversized advertised dan
-streamed body, redirect yang tidak diikuti, serta batas dimensi decoder. Tes
-menggunakan TCP loopback hanya melalui helper internal; command publik tetap
-mewajibkan HTTPS + IP publik. TLS/DNS/webview end-to-end masih belum diuji.
+- Satu tahap per putaran, tes regresi untuk bug yang ditemukan.
+- Bedakan status implementasi, CI, dan uji native Arch/Hyprland.
+- Jangan klaim nol kehilangan data atau keamanan total.
+- Jangan mengubah konfigurasi sistem/Hyprland pengguna tanpa persetujuan.
+- Lihat STATUS-HANDOFF.md untuk peta kode dan sejarah implementasi.
