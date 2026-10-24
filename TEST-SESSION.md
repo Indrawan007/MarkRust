@@ -1,5 +1,15 @@
 # Sesi uji MarkRust — baseline 226 tes frontend
 
+## Pembaruan build CI
+
+Kode e7b3396 sudah dipush dan CI [40095363897](https://github.com/Indrawan007/MarkRust/actions/runs/40095363897)
+lulus: npm test serta cargo build/cargo test di Linux, Windows dan macOS.
+Ini membuktikan kompilasi/tes Rust pada runner CI, bukan GUI di Arch/Hyprland.
+PR #5 tetap terbuka. Workflow tidak menghasilkan binary unduhan/installer;
+artefak yang tersedia hanya cargo-lock. Lockfile checkout belum diselaraskan:
+download artefak dari sandbox gagal pada endpoint storage eksternal.
+
+
 ## Yang sudah dijalankan di sandbox
 
 - [x] `npm test`: 226/226 lulus.
@@ -34,8 +44,8 @@ Gunakan tulisan dan berkas percobaan saja; jangan mulai dengan dokumen penting.
 
 ## Uji native di Arch + Hyprland
 
-Pakai **checkout yang memuat semua perubahan lokal sesi Arena**. Branch remote
-belum diperbarui; `git pull` saja tidak mengambil commit lokal terbaru ini.
+Pakai **checkout branch arena/bcbf3e21-markrust yang memuat e7b3396 atau lebih baru**.
+Kode ini sudah dipush; perbarui checkout sebelum menguji.
 Backup direktori data MarkRust terlebih dahulu, tutup binary lama, lalu jalankan
 perintah di terminal sesi Hyprland. Jangan install/ubah portal dulu.
 

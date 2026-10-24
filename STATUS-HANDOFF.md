@@ -713,3 +713,21 @@ Ini bukan pengujian interaksi visual/native. TEST-SESSION.md menyediakan urutan
 uji browser dan native beserta baseline dan batasnya. CAS konflik eksternal,
 GUI WebKitGTK/Hyprland, persistensi nyata dan portal tetap belum terverifikasi;
 preflight konflik tidak diiklankan sebagai atomik.
+
+## Build CI diizinkan dan lulus — 24 Oktober 2026
+
+Pengguna mengizinkan push + build CI (menggantikan batas jangan push/build),
+tanpa merge/install. Seluruh kode sampai e7b3396 telah dipush ke branch sesi.
+Run https://github.com/Indrawan007/MarkRust/actions/runs/40095363897 selesai
+SUCCESS: npm test (Node 22), cargo build dan cargo test di Linux/Windows/macOS.
+Ini menggantikan status historis bahwa Rust recovery/cleanup belum dikompilasi:
+kini kompilasi dan tes Rust sudah lulus CI, tetapi bukan di sandbox atau Arch.
+Baseline frontend lokal 226/226. PR #5 tetap OPEN, tidak merge atau rilis.
+
+Workflow hanya mengunggah artefak cargo-lock, bukan binary/installer. Artefak
+cargo-lock id 12560905707 tersedia pada run; download artefak dan log lengkap
+dari sandbox gagal EOF di endpoint storage eksternal. Cargo.lock checkout belum
+diperbarui; jangan mengklaim sudah diselaraskan. Hasil job/step diperiksa lewat
+gh run view/API: semua langkah build/test sukses. Tidak ada binary lokal yang
+terbentuk. GUI WebKitGTK/portal/clipboard/restart nyata Arch+Hyprland tetap perlu
+uji. Ada anotasi deprecation actions Node20, bukan kegagalan build.

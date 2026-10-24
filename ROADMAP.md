@@ -220,3 +220,11 @@ bukan lock inode atau berkas Markdown asal; multi-file deletion bukan transaksi.
 doctor mendeteksi toolchain/library build absen. Preview browser port 8080 dan
 TEST-SESSION.md disiapkan. Tidak install/push/CI. Tahap berikutnya uji nyata,
 bukan penambahan fitur; konflik save tetap preflight, bukan CAS atomik.
+
+### Gerbang build CI sudah dilewati
+
+Dengan izin pengguna, kode e7b3396 dipush dan run 40095363897 sukses:
+frontend Node22 dan Rust build/test di Linux/Windows/macOS. Bukan dukungan target
+publik baru atau bukti GUI Hyprland. Gate berikutnya: build lokal dan uji GUI
+Arch dengan dokumen percobaan. Artefak hanya cargo-lock; checkout lockfile belum
+diselaraskan karena unduhan storage eksternal terblokir dari sandbox.
