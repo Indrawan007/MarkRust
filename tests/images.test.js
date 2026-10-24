@@ -266,3 +266,33 @@ test('explicitly allowed images still assign their original src', () => {
   assert.ok(sources.includes(REMOTE));
   resetImagePolicy();
 });
+
+test('normalization never hands untrusted resources to DOMParser', () => {
+  resetImagePolicy();
+  const parsedInputs = [];
+  class RecordingParser {
+    parseFromString(input, type) {
+      parsedInputs.push(input);
+      return new DOMParser().parseFromString(input, type);
+    }
+  }
+  const output = normalizeForQuill(
+    '<img src="' + REMOTE + '"><iframe src="https://tracker.example/frame"></iframe>',
+    RecordingParser
+  );
+  assert.deepEqual(parsedInputs, ['']);
+  const doc = new DOMParser().parseFromString(output, 'text/html');
+  assert.equal(doc.querySelector('iframe'), null);
+  assert.equal(doc.querySelector('img').getAttribute('src'), IMAGE_PLACEHOLDER);
+  assert.equal(doc.querySelector('img').getAttribute('data-mr-src'), REMOTE);
+});
+
+test('nested templates cannot carry unsanitized resource markup downstream', () => {
+  resetImagePolicy();
+  const output = normalizeForQuill(
+    '<p>Keep</p><template><img src="https://tracker.example/hidden.png"></template>', DOMParser
+  );
+  assert.match(output, /Keep/);
+  assert.ok(!output.includes('<template'));
+  assert.ok(!output.includes('hidden.png'));
+});

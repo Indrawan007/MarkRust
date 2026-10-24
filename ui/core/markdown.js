@@ -39,7 +39,7 @@ export function escapeHtml(s) {
 function sanitizeUntrustedHtml(root) {
   var dangerous = root.querySelectorAll(
     'script,iframe,object,embed,style,link,meta,base,form,svg,math,' +
-    'audio,video,source,track,picture,frame,frameset,applet,portal,' +
+    'audio,video,source,track,picture,frame,frameset,applet,portal,template,' +
     'input[type="image"]'
   );
   for (var d = 0; d < dangerous.length; d++) {
@@ -97,8 +97,12 @@ function sanitizeUntrustedHtml(root) {
 export function normalizeForQuill(html, DOMParserImpl) {
   var Parser = DOMParserImpl || globalThis.DOMParser;
   if (!Parser) throw new Error('normalizeForQuill membutuhkan DOMParser');
-  var doc = new Parser().parseFromString('<div id="__mr_root">' + html + '</div>', 'text/html');
-  var root = doc.getElementById('__mr_root');
+  // DOMParser sees trusted empty markup only. Parse untrusted HTML inside
+  // template content: resources remain inert until sanitization is complete.
+  var doc = new Parser().parseFromString('', 'text/html');
+  var template = doc.createElement('template');
+  template.innerHTML = String(html == null ? '' : html);
+  var root = template.content;
 
   sanitizeUntrustedHtml(root);
 
@@ -181,7 +185,7 @@ export function normalizeForQuill(html, DOMParserImpl) {
       doc.createTextNode(cb.hasAttribute('checked') ? '[x] ' : '[ ] '), cb);
   }
 
-  return root.innerHTML;
+  return template.innerHTML;
 }
 
 /** Parse Markdown menjadi HTML siap ditempel ke clipboard Quill. */

@@ -153,3 +153,15 @@ perbaikan blocker data/security.
 - Baseline JS terbaru: **146/146 lulus** setelah `npm ci && npm test`.
 - Ini bukti urutan penyetelan atribut, bukan pengamatan request jaringan pada
   webview asli. M3 dan checklist privasi belum dinyatakan selesai.
+
+## Update parsing HTML inert
+
+Normalisasi kini membuat dokumen kosong melalui DOMParser, kemudian membaca
+HTML tak tepercaya di `template.content` yang inert. Sanitasi dan penggantian
+src berjalan sebelum hasil diserahkan ke Quill. Template bersarang dibuang
+agar tidak meneruskan subtree yang belum disanitasi. Tes merekam input parser
+(dokumen kosong saja) dan mengunci penghapusan template bersarang.
+
+Baseline terbaru: **148/148 tes JavaScript lulus**. Ini hardening jalur
+normalisasi Markdown/HTML aplikasi; clipboard native Quill dan network aktual
+masih harus diuji pada checklist P01/P03. CSP/downloader native M3 belum selesai.
