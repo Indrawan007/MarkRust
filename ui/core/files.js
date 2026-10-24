@@ -126,12 +126,27 @@ export async function confirmDiscard(tauri) {
   return askOrConfirm(tauri, message, 'MarkRust', 'warning');
 }
 
-/** Ditanyakan saat pengguna menutup jendela dengan dokumen masih kotor. */
+/** Three-way decision: dismiss/unknown results must never mean discard. */
 export async function confirmSaveOnClose(tauri) {
   const message = 'Ada perubahan yang belum disimpan. Simpan sebelum keluar?\n\n' +
     'Keluar tanpa menyimpan hanya diteruskan jika cadangan draf berhasil. ' +
     'Cadangan bukan pengganti menyimpan berkas.';
-  return askOrConfirm(tauri, message, 'MarkRust', 'warning');
+  if (tauri) {
+    if (typeof tauri.dialog?.message !== 'function') return 'cancel';
+    const buttons = { yes: 'Simpan', no: 'Keluar tanpa menyimpan', cancel: 'Batal' };
+    const result = await tauri.dialog.message(message, {
+      title: 'MarkRust', kind: 'warning', buttons
+    });
+    if (result === buttons.yes || result === 'Yes') return 'save';
+    if (result === buttons.no || result === 'No') return 'discard';
+    return 'cancel';
+  }
+  // Browser confirm has only two buttons: require a second explicit choice
+  // before exit-without-save. Dismissing either dialog cannot discard directly.
+  if (typeof window === 'undefined' || typeof window.confirm !== 'function') return 'cancel';
+  if (window.confirm(message)) return 'save';
+  return window.confirm('Keluar tanpa menyimpan? Pilih Batal untuk tetap di editor.')
+    ? 'discard' : 'cancel';
 }
 
 /** Ditanyakan saat startup bila draf dari sesi sebelumnya ditemukan. */

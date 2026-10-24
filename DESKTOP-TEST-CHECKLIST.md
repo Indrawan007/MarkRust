@@ -156,3 +156,10 @@ ini belum dijalankan di webview/OS nyata.
   tersedia, statistik mengetik tidak terus diumumkan; perubahan status penting
   tetap terbaca. Tes CSS cascade tidak memvalidasi geometri maupun speech AT.
   Keduanya tetap BELUM DIUJI native.
+
+- U16: close dokumen kotor menawarkan Simpan, Keluar tanpa menyimpan, Batal.
+  Batal harus mempertahankan isi/dirty dan fokus editor; coba Escape dan X
+  pada dialog native dan catat hasil aktual plugin/portal: keduanya seharusnya
+  tidak diperlakukan sebagai discard. Simpan batal/gagal tetap membuka app;
+  discard hanya diteruskan jika backup berhasil. Mock Cancel lulus, perilaku
+  Escape/X native BELUM DIUJI.

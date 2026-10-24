@@ -170,3 +170,9 @@ peringatan panjang, pemusatan/scroll dialog dan tema recovery, serta live region
 terpisah dari statistik dengan deduplikasi notice. 204 tes frontend lulus.
 Computed CSS/jsdom bukan bukti layout/native atau screen reader; validasi visual
 pada viewport kecil/scaling tetap belum dilakukan. Build tetap menunggu izin.
+
+Putaran close tiga pilihan: Simpan / Keluar tanpa menyimpan / Batal menggantikan
+keputusan boolean. Batal/dismiss/hasil tak dikenal tidak mengizinkan close;
+fallback browser membutuhkan konfirmasi discard terpisah. 207 tes frontend
+lulus. API existing dialog.message dipakai, tanpa Rust/capability baru.
+Uji Escape/X dan portal dialog native tetap menunggu izin build/validasi nyata.

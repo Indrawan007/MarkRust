@@ -562,3 +562,23 @@ Batas terbuka:
   atau geometri overflow. Tampilan 320/480 px, fractional scaling, popup warna,
   serta perilaku screen reader sebenarnya masih belum diverifikasi.
 - Tidak build/install/push, tidak mengklaim uji GUI Arch/Hyprland selesai.
+
+## Tahap pemantapan 4 — Batal pada close dokumen kotor
+
+- confirmSaveOnClose kini mengembalikan save/discard/cancel, bukan boolean.
+  Native memakai dialog.message dengan buttons {yes,no,cancel} berlabel
+  Simpan/Keluar tanpa menyimpan/Batal; izin dialog:allow-message sudah ada.
+- Result Batal/Cancel/tidak dikenali menjadi cancel, tidak dianggap izin keluar
+  tanpa menyimpan. Handler mencegah close, mempertahankan dirty/isi, memberi
+  feedback dan melepas lock. Save/discard mempertahankan guard backup/stale lama.
+- Browser confirm dua tombol memerlukan konfirmasi kedua yang eksplisit untuk
+  discard; tanpa API konfirmasi hasilnya cancel. Tidak fallback diam-diam dari
+  native tiga tombol ke ask boolean jika API tidak tersedia.
+- Bentuk API buttons/result diperiksa dari sumber resmi upstream:
+  github.com/tauri-apps/plugins-workspace, plugins/dialog/guest-js/index.ts
+  (MessageDialogButtonsYesNoCancel, MessageDialogResult, message).
+- **207/207 tes frontend lulus** termasuk normalisasi pilihan, fallback browser,
+  Batal/dismiss mock tanpa write atau perubahan isi dan retry Simpan.
+- Tidak build/install/push. Tombol tiga pilihan, pemetaan Escape/X dan label
+  actual dialog plugin/portal di Arch tetap BELUM DIUJI; jangan menyamakan
+  mock result Cancel dengan bukti key Escape native.

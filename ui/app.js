@@ -849,8 +849,13 @@ function boot() {
           closeInProgress = true;
           try {
             await flushDraft();
-            const saveFirst = await confirmSaveOnClose(tauri);
-            if (!saveFirst) {
+            const decision = await confirmSaveOnClose(tauri);
+            if (decision === 'cancel') {
+              event.preventDefault();
+              fileFeedback('Keluar dibatalkan. Dokumen tetap terbuka.');
+              return;
+            }
+            if (decision === 'discard') {
               // Include edits made while the prompt was open.
               const backedUp = await flushDraft();
               if (!backedUp) {

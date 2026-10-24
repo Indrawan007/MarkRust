@@ -24,7 +24,7 @@ function fakeTauri(opts = {}) {
       open: async (o) => { calls.push(['open', o]); return openResult; },
       save: async (o) => { calls.push(['save', o]); return saveResult; },
       ask: async (msg) => { calls.push(['ask', msg]); return opts.askResult !== undefined ? opts.askResult : true; },
-      message: async (msg) => { calls.push(['message', msg]); }
+      message: async (msg, options) => { calls.push(['message', msg, options]); return opts.messageResult ?? 'Simpan'; }
     }
   };
   if (opts.withoutDialog) delete bridge.dialog;
@@ -120,7 +120,7 @@ test('daftar ekstensi JS identik dengan validasi Rust di main.rs', () => {
 
 test('confirmSaveOnClose memakai dialog native bila ada', async () => {
   const t = fakeTauri();
-  assert.equal(await confirmSaveOnClose(t), true);
+  assert.equal(await confirmSaveOnClose(t), 'save');
   assert.match(t.calls[t.calls.length - 1][1], /Simpan sebelum keluar/);
 });
 
@@ -138,7 +138,7 @@ test('fallback browser: window.confirm dipakai saat Tauri tidak ada', async () =
   });
   try {
     assert.equal(await confirmDiscard(null), true);
-    assert.equal(await confirmSaveOnClose(null), true);
+    assert.equal(await confirmSaveOnClose(null), 'save');
     assert.equal(await confirmRestore(null, 'Pulihkan?'), true);
     assert.equal(seen.length, 3);
     assert.match(seen[0], /Perubahan belum disimpan/);
@@ -158,7 +158,7 @@ test('fallback tanpa window sama sekali -> false, tidak melempar', async () => {
     configurable: true, writable: true, value: undefined
   });
   try {
-    assert.equal(await confirmSaveOnClose(null), false);
+    assert.equal(await confirmSaveOnClose(null), 'cancel');
   } finally {
     if (original === undefined) delete globalThis.window;
     else Object.defineProperty(globalThis, 'window', {
@@ -189,4 +189,29 @@ test('browser file read rejects oversized input before allocating a reader and s
     reader.result = 'text'; reader.onload();
     assert.deepEqual(await loaded, { path: 'small.mdown', contents: 'text' });
   } finally { globalThis.FileReader = original; }
+});
+
+test('close decision distinguishes save/discard/cancel and treats unknown results as cancel', async () => {
+  for (const [result, expected] of [
+    ['Simpan', 'save'], ['Yes', 'save'], ['Keluar tanpa menyimpan', 'discard'],
+    ['No', 'discard'], ['Batal', 'cancel'], ['Cancel', 'cancel'], ['', 'cancel'],
+    [false, 'cancel'], ['unexpected', 'cancel']
+  ]) {
+    const t = fakeTauri({ messageResult: result });
+    assert.equal(await confirmSaveOnClose(t), expected);
+    assert.deepEqual(t.calls[0][2].buttons, { yes: 'Simpan', no: 'Keluar tanpa menyimpan', cancel: 'Batal' });
+  }
+  assert.equal(await confirmSaveOnClose({ dialog: {} }), 'cancel');
+});
+
+test('browser close fallback requires an explicit second confirmation to discard', async () => {
+  const original = globalThis.window;
+  try {
+    for (const [answers, expected] of [[[false, false], 'cancel'], [[false, true], 'discard'], [[true], 'save']]) {
+      const remaining = [...answers];
+      globalThis.window = { confirm: () => remaining.shift() };
+      assert.equal(await confirmSaveOnClose(null), expected);
+      assert.equal(remaining.length, 0);
+    }
+  } finally { globalThis.window = original; }
 });

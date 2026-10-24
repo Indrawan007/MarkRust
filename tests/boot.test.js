@@ -29,6 +29,7 @@ const asks = [];
 const closeHandlers = [];
 const destroyed = [];
 let nextAskResult = true;
+let nextCloseResult = undefined;
 let pendingDownload = null;
 let failWrite = false;
 let pendingWrite = null;
@@ -72,7 +73,14 @@ window.__TAURI__ = {
     open: async () => '/home/u/catatan.md',
     save: async () => '/home/u/catatan-baru.md',
     ask: async (msg) => { asks.push(msg); if (failAsk) throw new Error('dialog unavailable'); if (pendingAsk) await pendingAsk; return nextAskResult; },
-    message: async () => {}
+    message: async (msg, options) => {
+      if (!options?.buttons) return;
+      asks.push(msg);
+      if (failAsk) throw new Error('dialog unavailable');
+      if (pendingAsk) await pendingAsk;
+      return nextCloseResult !== undefined ? nextCloseResult
+        : nextAskResult ? options.buttons.yes : options.buttons.no;
+    }
   },
   event: { listen: async () => () => {} },
   window: {
@@ -1256,4 +1264,28 @@ test('statistik bukan live region; status penting tetap live dan notice identik 
     assert.equal(mutations, 0);
     assert.equal(notice.title, notice.textContent);
   } finally { observer.disconnect(); await api.flushDraft(); }
+});
+
+test('Batal/dismiss dialog close mempertahankan jendela tanpa write dan lock dilepas', async () => {
+  await api.newDocument();
+  api.quill.insertText(0, 'Tetap di editor', 'user');
+  const before = api.getMarkdown();
+  const writes = tauriCalls.filter(([cmd]) => cmd === 'write_document').length;
+  try {
+    for (const result of ['Batal', 'Cancel', 'unknown']) {
+      nextCloseResult = result;
+      let prevented = false;
+      await closeHandlers.at(-1)({ preventDefault() { prevented = true; } });
+      assert.equal(prevented, true);
+      assert.equal(api.getMarkdown(), before);
+      assert.equal(api.isDirty(), true);
+      assert.equal(tauriCalls.filter(([cmd]) => cmd === 'write_document').length, writes);
+      assert.match(window.document.getElementById('file-feedback').textContent, /Keluar dibatalkan/);
+    }
+    nextCloseResult = 'Simpan';
+    let prevented = false;
+    await closeHandlers.at(-1)({ preventDefault() { prevented = true; } });
+    assert.equal(prevented, false);
+    assert.equal(api.isDirty(), false);
+  } finally { nextCloseResult = undefined; await api.flushDraft(); }
 });
