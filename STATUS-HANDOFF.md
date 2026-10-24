@@ -84,9 +84,11 @@ runtime native dalam sesi sandbox ini. Jangan menandai M1/M2 selesai dulu.
 
 `img-src` masih mengizinkan `https:`; pertahanan sekarang di aplikasi, bukan
 CSP penuh. Jangan mengklaim nol request hanya dari tes DOM jsdom. Audit dengan
-network inspector pada Markdown dan clipboard asli. Khususnya periksa urutan
-pembuatan blot (`super.create(value)` dapat menyetel URL asli sebelum placeholder)
-dan parsing HTML sementara. Jika fetch teramati, perlakukan sebagai blocker.
+network inspector pada Markdown dan clipboard asli. Celah urutan pembuatan blot telah direproduksi dan diperbaiki: keputusan
+blokir kini dilakukan sebelum pemanggilan `super.create`, sehingga blot dasar
+hanya menerima placeholder untuk URL yang diblokir. Tes regresi merekam setiap
+penyetelan atribut src (bukan sekadar DOM akhir). Parsing HTML sementara dan
+clipboard nyata tetap perlu diaudit lewat network inspector. Jika fetch teramati, perlakukan sebagai blocker.
 
 Desain lanjutan: downloader native terbatas dengan validasi skema/DNS/IP,
 redirect, ukuran/timeouts, format gambar aman; tidak membuka HTTP client umum
@@ -142,3 +144,12 @@ perbaikan blocker data/security.
 - `c74339b`: M1b quota + tes proses kill.
 - `0ecfd7a`: M1c pemilih recovery.
 - `b931d22`: audit lifecycle + checklist native dan laporan handoff; CI `40074055940` lulus.
+
+
+## Update hardening blot gambar
+
+- Celah transient src direproduksi oleh tes sebelum perbaikan, lalu ditutup.
+- URL asli tetap tersedia pada Delta; pemuatan dengan izin eksplisit tetap jalan.
+- Baseline JS terbaru: **146/146 lulus** setelah `npm ci && npm test`.
+- Ini bukti urutan penyetelan atribut, bukan pengamatan request jaringan pada
+  webview asli. M3 dan checklist privasi belum dinyatakan selesai.

@@ -54,11 +54,13 @@ export function registerSafeImageBlot(Quill) {
     static tagName = 'IMG';
 
     static create(value) {
-      const node = super.create(value);
       const url = String(value == null ? '' : value);
-      if (shouldBlockRemoteImage(url)) {
+      const blocked = shouldBlockRemoteImage(url);
+      // BaseImage.create immediately sets src, even on a detached element.
+      // Never pass the remote URL to it before the policy decision.
+      const node = super.create(blocked ? IMAGE_PLACEHOLDER : value);
+      if (blocked) {
         node.setAttribute('data-mr-src', url);
-        node.setAttribute('src', IMAGE_PLACEHOLDER);
       }
       return node;
     }

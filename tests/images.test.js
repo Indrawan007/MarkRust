@@ -227,3 +227,42 @@ test('beberapa gambar: semua ditahan, semuanya bisa diizinkan sekaligus', () => 
   assert.equal(revealAllowedImages(q), 2);
   assert.deepEqual(Array.from(q.root.querySelectorAll('img')).map((i) => i.getAttribute('src')), urls);
 });
+
+// Record every src assignment, including the temporary detached node created
+// by the base Quill blot. Looking only at the final DOM misses this leak.
+function recordImageSources(run) {
+  const { window } = getEnv();
+  const proto = window.Element.prototype;
+  const original = proto.setAttribute;
+  const sources = [];
+  proto.setAttribute = function (name, value) {
+    if (this.tagName === 'IMG' && String(name).toLowerCase() === 'src') {
+      sources.push(String(value));
+    }
+    return original.call(this, name, value);
+  };
+  try { run(); } finally { proto.setAttribute = original; }
+  return sources;
+}
+
+test('blocked direct embeds never transiently assign a remote src', () => {
+  resetImagePolicy();
+  const q = createQuill();
+  const urls = [REMOTE, '//tracker.example/pixel.png', 'http://tracker.example/x.png'];
+  const sources = recordImageSources(() => {
+    for (const url of urls) q.insertEmbed(0, 'image', url, 'user');
+  });
+  assert.ok(sources.length >= urls.length);
+  assert.deepEqual(sources.filter(isRemoteImageUrl), []);
+  const imageValues = q.getContents().ops.filter((op) => op.insert?.image).map((op) => op.insert.image);
+  for (const url of urls) assert.ok(imageValues.includes(url));
+});
+
+test('explicitly allowed images still assign their original src', () => {
+  resetImagePolicy();
+  allowRemoteImage(REMOTE);
+  const q = createQuill();
+  const sources = recordImageSources(() => q.insertEmbed(0, 'image', REMOTE, 'user'));
+  assert.ok(sources.includes(REMOTE));
+  resetImagePolicy();
+});
