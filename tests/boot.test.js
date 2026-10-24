@@ -876,3 +876,42 @@ test('unreadable candidate is reported without clearing or changing current cont
     assert.match(window.document.getElementById('file-feedback').textContent, /Pemulihan gagal/);
   } finally { archivedRecoveries = []; failCandidateRead = false; }
 });
+
+test('kontrol format dan input memiliki nama aksesibel', () => {
+  for (const button of window.document.querySelectorAll('#quill-toolbar button')) {
+    assert.ok(button.getAttribute('aria-label'), button.outerHTML);
+    assert.equal(button.title, button.getAttribute('aria-label'));
+  }
+  assert.equal(window.document.getElementById('raw-textarea').getAttribute('aria-label'), 'Editor Markdown');
+  assert.equal(window.document.getElementById('image-url').getAttribute('aria-describedby'), 'image-error');
+});
+
+test('auto-hide tidak terus ditunda oleh gerakan pointer dan seleksi keyboard menampilkan toolbar', async () => {
+  await api.newDocument();
+  api.setMode('wysiwyg');
+  api.quill.setText('Pilih teks ini\n');
+  api.quill.setSelection(0, 0);
+  const doc = window.document;
+  const app = doc.getElementById('app');
+  const pin = doc.getElementById('btn-pin');
+  const move = () => doc.dispatchEvent(new window.MouseEvent('pointermove', { clientY: 500 }));
+  if (pin.getAttribute('aria-pressed') === 'true') pin.click();
+  try {
+    move();
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    move();
+    await new Promise((resolve) => setTimeout(resolve, 220));
+    assert.equal(app.classList.contains('tb-hidden'), true);
+    api.quill.setSelection(0, 5, 'user');
+    assert.equal(app.classList.contains('tb-hidden'), false);
+    move();
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    assert.equal(app.classList.contains('tb-hidden'), false);
+    doc.getElementById('btn-new').focus();
+    assert.equal(app.classList.contains('tb-hidden'), false);
+  } finally {
+    if (pin.getAttribute('aria-pressed') !== 'true') pin.click();
+    api.quill.setSelection(0, 0);
+    await api.flushDraft();
+  }
+});

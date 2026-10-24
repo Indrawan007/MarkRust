@@ -89,7 +89,7 @@
 
   <!-- RAW MARKDOWN VIEW -->
   <div id="raw-view">
-    <textarea id="raw-textarea" placeholder="Raw Markdown..." spellcheck="false"></textarea>
+    <textarea id="raw-textarea" aria-label="Editor Markdown" placeholder="Raw Markdown..." spellcheck="false"></textarea>
   </div>
 
   <div id="file-feedback" role="status" aria-live="polite" aria-atomic="true" hidden></div>
@@ -128,7 +128,7 @@
     <h2 id="image-dialog-title">Sisipkan gambar</h2>
     <p>Masukkan alamat gambar. Berkas lokal dan <code>data:</code> tidak didukung agar berkas .md tetap ringan.</p>
     <input type="text" inputmode="url" id="image-url" placeholder="https://contoh.com/gambar.png"
-           autocomplete="off" spellcheck="false">
+           aria-label="Alamat gambar" aria-describedby="image-error" autocomplete="off" spellcheck="false">
     <div class="dlg-error" id="image-error" aria-live="polite"></div>
     <div class="dlg-actions">
       <button type="button" id="image-cancel">Batal</button>

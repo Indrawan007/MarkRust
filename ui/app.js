@@ -215,6 +215,23 @@ function boot() {
   if (toolbarModule) {
     if (toolbarModule.container) {
       document.getElementById('quill-toolbar').appendChild(toolbarModule.container);
+      // Quill's icon-only controls need names beyond their SVG shapes.
+      const labels = {
+        bold: 'Tebal', italic: 'Miring', underline: 'Garis bawah', strike: 'Coret',
+        blockquote: 'Kutipan', 'code-block': 'Blok kode', link: 'Tautan',
+        image: 'Sisipkan gambar', clean: 'Hapus format'
+      };
+      for (const button of toolbarModule.container.querySelectorAll('button')) {
+        const format = [...button.classList].find((name) => name.startsWith('ql-'))?.slice(3);
+        const label = format === 'header' ? 'Judul tingkat ' + button.value
+          : format === 'list' ? (button.value === 'ordered' ? 'Daftar bernomor' : 'Daftar berpoin')
+          : labels[format];
+        if (label) {
+          button.setAttribute('aria-label', label);
+          button.title = label;
+        }
+      }
+
     }
     if (typeof toolbarModule.addHandler === 'function') {
       toolbarModule.addHandler('image', imageHandler);
@@ -398,8 +415,7 @@ function boot() {
   }
 
   function scheduleHide() {
-    if (pinned || tbFocus || hasTextSelection()) return;
-    clearTimeout(tbTimer);
+    if (pinned || tbFocus || hasTextSelection() || tbTimer !== null) return;
     tbTimer = setTimeout(function () {
       tbTimer = null;
       if (pinned || tbFocus || hasTextSelection()) return;
@@ -469,6 +485,9 @@ function boot() {
   let rawPosition = null;
   quill.on('selection-change', function (range) {
     if (range) visualSelection = { index: range.index, length: range.length };
+    // Selecting by keyboard must reveal formatting too, without pointer movement.
+    if (range?.length) setToolbarShown(true);
+    else scheduleHide();
   });
 
   function setMode(mode) {

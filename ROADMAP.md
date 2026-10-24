@@ -121,3 +121,10 @@ perubahan Rust dan tesnya **belum dikompilasi/dijalankan**, karena jangan build.
 Arsip dipertahankan sesudah restore/save; UI cleanup eksplisit dan browser
 fallback archive isolation masih pekerjaan tersisa. Tahap ini bukan klaim
 validasi native selesai.
+
+### Tahap pemantapan 4 — UI harian, putaran keyboard/toolbar
+
+Perbaikan timer auto-hide saat pointer bergerak, reveal toolbar saat seleksi
+keyboard, serta label aksesibel tombol format/input. 185 tes frontend lulus.
+Audit GUI native, dropdown warna, scaling/jendela sempit dan clipboard nyata
+belum dilakukan. Tidak membuka tahap build tanpa izin pengguna.

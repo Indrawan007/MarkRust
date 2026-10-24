@@ -86,3 +86,14 @@ ini belum dijalankan di webview/OS nyata.
 - H05: catat backend GTK/Wayland/XWayland dan portal file chooser yang benar-benar
   aktif. Bila gagal, kumpulkan log dahulu; jangan menerapkan workaround global
   atau mengganti konfigurasi Hyprland tanpa persetujuan.
+
+## Pemantapan UI harian — belum diuji native
+
+- U01: lepas pin toolbar, gerakkan pointer terus di bawah toolbar; toolbar
+  seharusnya tersembunyi setelah jeda, bukan menunggu mouse diam. Tab ke tombol
+  harus menampilkan toolbar dan mempertahankannya selama kontrol punya fokus.
+- U02: pilih teks visual dengan Shift+panah tanpa gerakan pointer; toolbar
+  muncul, tetap tampil saat teks terpilih; uji menerapkan format setelahnya.
+- U03: hover tombol format untuk tooltip Indonesia; cek nama input Markdown
+  dan alamat gambar lewat accessibility inspector bila tersedia. Dropdown warna
+  masih perlu audit keyboard/accessibility tersendiri.

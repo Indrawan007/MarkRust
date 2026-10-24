@@ -419,3 +419,18 @@ Batas terbuka:
 - Fallback versi rusak yang masih memiliki versi valid tetap memakai versi
   valid; label rusak khusus sesi tanpa versi yang bisa dibaca.
 - Uji Rust, dua proses dan GUI nyata tetap diperlukan setelah build diizinkan.
+
+## Tahap pemantapan 4 — audit UI harian, putaran keyboard/toolbar
+
+- Perbaiki auto-hide yang terus mengulang timer ketika pointer bergerak di luar
+  toolbar: timer 400 ms yang sudah berjalan kini dibiarkan selesai.
+- Seleksi teks Quill (termasuk lewat keyboard) menampilkan toolbar seketika dan
+  menahannya selama range terpilih. Fokus kontrol toolbar juga tetap menampilkan.
+- Tombol format berbasis SVG memperoleh nama aksesibel/title Indonesia; input
+  raw Markdown dan URL gambar memperoleh aria-label; error URL dihubungkan
+  melalui aria-describedby.
+- **185/185 tes frontend lulus**, termasuk regresi pointer bergerak, seleksi,
+  fokus toolbar dan nama kontrol. git diff --check bersih.
+- Ini audit wiring DOM/jsdom, bukan bukti tampilan/fokus di WebKitGTK nyata.
+  Uji dropdown warna, narrow window, scaling, clipboard dan alur native masih
+  perlu pemeriksaan manual. Tidak build/install/push atau menjalankan tes Rust.
