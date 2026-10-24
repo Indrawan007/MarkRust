@@ -326,3 +326,18 @@ serta gagal simpan yang memulihkan tombol tanpa mengklaim sukses. Tidak ada
 build/install native atau verifikasi GUI Arch pada tahap ini. Jangan memicu
 build otomatis melalui push sebelum arahan jangan-build direvisi; workflow
 branch saat ini menjalankan Rust build saat push.
+
+## Pemantapan dialog dan shortcut — tanpa build
+
+Shortcut berkas/mode kini diblokir ketika dialog in-app terbuka, baik melalui
+keyboard, menu native, maupun fungsi aksi berkas. Shortcut ditahan (repeat)
+tidak memicu operasi baru; event IME, Alt modifier, dan shortcut yang tidak
+dikelola (copy/undo dll.) dibiarkan ke editor. Drop berkas diabaikan ketika
+dialog/konfirmasi Baru/Buka masih aktif. Permintaan Baru berulang dibatasi satu
+konfirmasi; tombol dipulihkan setelah batal/gagal dan tulisan tidak dibuang.
+
+Baseline terbaru: **168/168 tes frontend lulus**, termasuk modal gambar/recovery,
+menu/direct actions, repeat/IME/Alt, dan satu konfirmasi Baru saat dipanggil
+berulang. Ini tes jsdom, bukan input keyboard/compositor Hyprland nyata.
+Tidak ada build native/install/CI yang dijalankan; perubahan tetap lokal agar
+push tidak memicu build workflow, sesuai arahan pengguna.

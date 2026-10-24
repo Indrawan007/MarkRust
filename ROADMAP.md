@@ -88,3 +88,10 @@ ARCH-HYPRLAND.md dan script doctor/build/install/rollback/uninstall per-user
 sudah tersedia. Build default --locked, resolusi lockfile harus eksplisit.
 162 tes JS lulus termasuk fixture script; uji native di mesin pengguna masih
 menunggu. Tidak ada konfigurasi Hyprland atau portal yang diubah otomatis.
+
+### Fokus aktif — pemantapan aplikasi sebelum build
+
+Pengguna meminta jangan build dulu. Perbaikan sekarang difokuskan pada alur
+harian: feedback buka/simpan, busy controls, guard dialog/shortcut dan pencegahan
+konfirmasi berulang. Baseline 168 tes frontend lulus. Build/install dan push
+pemicu CI ditunda; uji native Hyprland tetap belum dilakukan.

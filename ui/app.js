@@ -225,6 +225,7 @@ function boot() {
   let editRevision = 0;
   let saveInProgress = false;
   let openInProgress = false;
+  let newInProgress = false;
 
   function getCanonicalMarkdown() {
     return currentMode === 'markdown' ? textarea.value : quillToMarkdown();
@@ -500,17 +501,33 @@ function boot() {
     return stamp[0] === documentGeneration && stamp[1] === editRevision;
   }
 
+  function hasOpenAppDialog() {
+    return document.querySelector('dialog[open]') !== null;
+  }
+
   async function newDocument() {
+    if (newInProgress || openInProgress || hasOpenAppDialog()) return false;
+    newInProgress = true;
+    fileBusy('new', true);
     const stamp = documentStamp();
-    if (dirty && !(await confirmDiscard(tauri))) return false;
-    if (!documentUnchanged(stamp)) return false;
-    discardDraft();
-    currentPath = null;
-    applyDocument('');
-    markClean();
-    fileFeedback('Dokumen baru.');
-    if (currentMode === 'wysiwyg') quill.focus();
-    return true;
+    try {
+      if (dirty && !(await confirmDiscard(tauri))) return false;
+      if (!documentUnchanged(stamp)) return false;
+      discardDraft();
+      currentPath = null;
+      applyDocument('');
+      markClean();
+      fileFeedback('Dokumen baru.');
+      if (currentMode === 'wysiwyg') quill.focus();
+      return true;
+    } catch (err) {
+      fileFeedback('Dokumen baru tidak dibuat. Tulisan aktif tetap dipertahankan.', 'error');
+      await showError(tauri, err && err.message ? err.message : String(err));
+      return false;
+    } finally {
+      newInProgress = false;
+      fileBusy('new', false);
+    }
   }
 
   function fileFeedback(message, kind = 'info') {
@@ -527,7 +544,7 @@ function boot() {
   }
 
   async function openDocument() {
-    if (openInProgress) return false;
+    if (openInProgress || newInProgress || hasOpenAppDialog()) return false;
     openInProgress = true;
     fileBusy('open', true);
     const stamp = documentStamp();
@@ -565,7 +582,7 @@ function boot() {
 
   async function saveDocument(saveAs) {
     // Never overlap writes to the same temporary file or race save dialogs.
-    if (saveInProgress) return false;
+    if (saveInProgress || newInProgress || openInProgress || hasOpenAppDialog()) return false;
     saveInProgress = true;
     fileBusy('save', true);
     fileFeedback('Menyimpan…');
@@ -610,6 +627,7 @@ function boot() {
   }
 
   async function handleMenuAction(action) {
+    if (hasOpenAppDialog()) return false;
     switch (action) {
       case 'new': return newDocument();
       case 'open': return openDocument();
@@ -629,12 +647,16 @@ function boot() {
   // Pintasan keyboard ditangani terpusat di sini. Menu native sengaja tidak
   // memasang accelerator supaya tidak ada dobel-trigger Ctrl+S.
   document.addEventListener('keydown', function (e) {
-    if (!(e.ctrlKey || e.metaKey)) return;
+    if (e.defaultPrevented || e.isComposing || e.altKey || !(e.ctrlKey || e.metaKey)) return;
     const key = String(e.key || '').toLowerCase();
-    if (key === 's') { e.preventDefault(); saveDocument(e.shiftKey); }
-    else if (key === 'o') { e.preventDefault(); openDocument(); }
-    else if (key === 'n') { e.preventDefault(); newDocument(); }
-    else if (key === 'm' && e.shiftKey) { e.preventDefault(); toggleMode(); }
+    const action = key === 's' ? (e.shiftKey ? 'save_as' : 'save')
+      : key === 'o' ? 'open'
+      : key === 'n' ? 'new'
+      : key === 'm' && e.shiftKey ? 'toggle_mode' : null;
+    if (!action) return; // Leave copy/paste, undo, navigation etc. alone.
+    e.preventDefault();
+    if (e.repeat || hasOpenAppDialog()) return;
+    handleMenuAction(action);
   });
 
   // Event dari menu native Rust (Berkas > ...).
@@ -653,6 +675,7 @@ function boot() {
     const file = dt && dt.files && dt.files[0];
     if (!file) return;
     e.preventDefault();
+    if (hasOpenAppDialog() || newInProgress || openInProgress) return;
     if (!isMarkdownFilename(file.name)) {
       showError(tauri, 'Berkas harus berekstensi .md, .markdown, atau .txt');
       return;

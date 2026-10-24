@@ -614,3 +614,77 @@ test('failed save restores controls and never claims success', async () => {
     assert.equal(api.isDirty(), true);
   } finally { failWrite = false; }
 });
+
+test('app dialogs block file shortcuts, native menu and direct document replacement', async () => {
+  nextAskResult = true;
+  await api.newDocument();
+  api.quill.insertText(0, 'Tulisan aktif', 'user');
+  const before = api.getMarkdown();
+  for (const id of ['image-dialog', 'recovery-dialog']) {
+    const dialog = window.document.getElementById(id);
+    dialog.setAttribute('open', '');
+    const callsBefore = tauriCalls.length;
+    const modeBefore = window.document.getElementById('sb-mode').textContent;
+    try {
+      for (const action of ['new', 'open', 'save', 'save_as', 'toggle_mode']) {
+        assert.equal(await api.handleMenuAction(action), false);
+      }
+      assert.equal(await api.newDocument(), false);
+      assert.equal(await api.openDocument(), false);
+      assert.equal(await api.saveDocument(false), false);
+      for (const key of ['n', 'o', 's', 'm']) {
+        const event = new window.KeyboardEvent('keydown', {
+          key, ctrlKey: true, shiftKey: key === 'm', bubbles: true, cancelable: true
+        });
+        window.document.dispatchEvent(event);
+        assert.equal(event.defaultPrevented, true);
+      }
+      assert.equal(api.getMarkdown(), before);
+      assert.equal(window.document.getElementById('sb-mode').textContent, modeBefore);
+      assert.equal(tauriCalls.length, callsBefore);
+    } finally { dialog.removeAttribute('open'); }
+  }
+});
+
+test('held shortcut is suppressed while IME, Alt and unrelated shortcuts are left alone', () => {
+  const callsBefore = tauriCalls.length;
+  const held = new window.KeyboardEvent('keydown', {
+    key: 's', ctrlKey: true, repeat: true, bubbles: true, cancelable: true
+  });
+  window.document.dispatchEvent(held);
+  assert.equal(held.defaultPrevented, true);
+  for (const options of [
+    { key: 's', ctrlKey: true, isComposing: true },
+    { key: 's', ctrlKey: true, altKey: true },
+    { key: 'c', ctrlKey: true },
+    { key: 'z', ctrlKey: true }
+  ]) {
+    const event = new window.KeyboardEvent('keydown', { ...options, bubbles: true, cancelable: true });
+    window.document.dispatchEvent(event);
+    assert.equal(event.defaultPrevented, false);
+  }
+  assert.equal(tauriCalls.length, callsBefore);
+});
+
+test('repeated New requests produce one confirmation and restore controls after cancel', async () => {
+  nextAskResult = true;
+  await api.newDocument();
+  api.quill.insertText(0, 'Jangan buang', 'user');
+  let release;
+  pendingAsk = new Promise((resolve) => { release = resolve; });
+  nextAskResult = false;
+  const before = asks.length;
+  try {
+    const creating = api.newDocument();
+    assert.equal(window.document.getElementById('btn-new').disabled, true);
+    assert.equal(await api.newDocument(), false);
+    assert.equal(await api.openDocument(), false);
+    assert.equal(await api.saveDocument(false), false);
+    assert.equal(asks.length, before + 1);
+    release();
+    assert.equal(await creating, false);
+    assert.equal(window.document.getElementById('btn-new').disabled, false);
+    assert.match(api.getMarkdown(), /Jangan buang/);
+    assert.equal(api.isDirty(), true);
+  } finally { release(); pendingAsk = null; nextAskResult = true; }
+});
