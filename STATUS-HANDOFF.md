@@ -598,3 +598,23 @@ Batas terbuka:
 - Ini koordinasi UI, bukan perubahan durability native atau penghapusan arsip.
   Error localStorage.clearDraft masih best-effort; isolasi fallback/legacy dan
   cleanup arsip native tetap terbuka. Tidak build/install/push atau tes Rust.
+
+## Prioritas urgent — hindari hapus legacy/overwrite sumber recovery
+
+- Native discardDraft kini hanya membersihkan workspace disk aktif, bukan key
+  legacy localStorage. Cadangan legacy yang ditunda, sudah diimpor atau rusak
+  dipertahankan melalui New/Open/Save. Native write tidak menyentuh key legacy.
+- Restore native maupun legacy/browser kini selalu mengimpor salinan tanpa
+  currentPath. Ctrl+S meminta lokasi; path di snapshot bukan izin menimpa file
+  sumber yang mungkin lebih baru. Batal Save mempertahankan isi/dirty/arsip.
+- Pengguna masih dapat sengaja memilih path sumber pada Save dialog; ini bukan
+  deteksi konflik eksternal atau larangan overwrite eksplisit. Dokumen yang
+  dibuka normal tetap dapat disimpan ke path-nya seperti sebelumnya.
+- Mock native tidak lagi menulis mirror ke localStorage, agar tes membedakan
+  dua sumber cadangan dengan benar. Assertions workspace memakai recoveryContents.
+- **211/211 tes frontend lulus**, git diff --check bersih: native defer lalu
+  edit/backup/save/open tidak memutasi legacy valid/rusak; restore stale snapshot
+  + cancel/save hanya menulis tujuan yang dipilih, bukan otomatis source path.
+- Legacy dipertahankan konservatif, dapat ditawarkan lagi sampai ada cleanup
+  eksplisit. Cleanup arsip/quota dan isolasi fallback browser masih terbuka.
+  Tidak ada build/install/push; perubahan Rust sebelumnya tetap belum diuji.

@@ -169,3 +169,10 @@ ini belum dijalankan di webview/OS nyata.
   Cleanup recovery gagal setelah file sukses tersimpan harus memperingatkan
   kemungkinan cadangan lama tersisa, bukan menyatakan file gagal disimpan.
   Tes memakai queue IPC mock; simulasi kegagalan native belum dijalankan.
+
+- U18: cadangan legacy ditunda, lalu New/edit/Save/Open: key legacy valid maupun
+  rusak tidak dihapus oleh native workspace clear. Setelah restore, Ctrl+S harus
+  meminta lokasi; Cancel mempertahankan isi/dirty. Jangan otomatis menulis path
+  sumber dari snapshot lama. Uji file sumber yang sudah diedit aplikasi lain;
+  isinya harus tetap sampai pengguna sengaja memilih overwrite. Belum diuji
+  native; ini bukan implementasi deteksi konflik eksternal.

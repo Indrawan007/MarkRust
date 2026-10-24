@@ -396,3 +396,18 @@ Batas input 5 MiB, dimensi 4096x4096, output PNG 8 MiB, cache dokumen 16 MiB.
 Perubahan format ini dapat menghilangkan animasi/metadata; bukan pengunduh
 berkas asli. Detail batas keamanan dan pekerjaan uji yang tersisa ada di
 STATUS-HANDOFF.md.
+
+### Pembaruan recovery lokal — prioritas integritas data
+
+Perilaku terbaru di branch pemantapan (menggantikan uraian lifecycle lama):
+restore membuka **salinan tanpa tujuan simpan aktif**, bukan otomatis memakai
+path dari snapshot. Ctrl+S meminta lokasi; Batal tetap mempertahankan perubahan.
+Ini mencegah snapshot lama otomatis menimpa berkas sumber yang mungkin lebih baru.
+Pengguna masih dapat sengaja memilih sumber sebagai tujuan; deteksi konflik
+berkas eksternal belum tersedia.
+
+Pada native, membersihkan workspace aktif tidak lagi menghapus draf legacy
+localStorage. Arsip native dan legacy ditahan secara konservatif; cleanup
+arsip eksplisit dan isolasi fallback browser masih belum selesai. Baseline
+**211 tes frontend lulus**; perubahan Rust recovery belum dikompilasi/diuji,
+serta GUI Arch/Hyprland belum diverifikasi. Tidak build/install/push pada tahap ini.

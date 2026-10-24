@@ -369,7 +369,9 @@ function boot() {
     draftError.hidden = true;
     clearTimeout(draftTimer);
     draftTimer = null;
-    clearDraft(draftStorage);
+    // Native archives and legacy storage are separate sources. Clearing the
+    // active native workspace must not delete an unimported/deferred legacy draft.
+    if (!diskRecovery) clearDraft(draftStorage);
     draftError.title = '';
     if (diskRecovery) diskRecovery.clear().catch(() => {
       if (epoch !== draftStatusEpoch) return;
@@ -950,10 +952,13 @@ function boot() {
       fileFeedback('Pemulihan ditunda. Cadangan lama tetap disimpan.');
       return false;
     }
-    currentPath = draft.path || null;
+    // Recovery can predate external changes to its source file. Import as a
+    // copy: ordinary Save must request a destination, not overwrite that path.
+    currentPath = null;
     applyDocument(draft.markdown);
     markClean();          // reset dulu supaya markDirty() tidak di-skip
     markDirty();          // dokumen hasil pemulihan memang belum tersimpan
+    fileFeedback('Draf dipulihkan sebagai salinan. Pilih lokasi saat menyimpan; berkas asal tidak ditimpa otomatis.');
     return true;
   }
 

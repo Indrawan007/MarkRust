@@ -55,8 +55,6 @@ window.__TAURI__ = {
         if (pendingRecoveryWrite) await pendingRecoveryWrite;
         if (failRecovery) throw new Error('disk full');
         recoveryContents = args.contents;
-        // Mirror for legacy assertions, not used by production disk writes.
-        window.localStorage.setItem('markrust.draft.v1', args.contents);
         return;
       }
       if (cmd === 'list_recoveries') return JSON.stringify(archivedRecoveries.map(({ raw, ...row }) => row));
@@ -307,7 +305,7 @@ test('tutup saat kotor + pilih tidak menyimpan -> draf tetap ada untuk dipulihka
   assert.equal(tauriCalls.filter((c) => c[0] === 'write_document').length, writesBefore,
     'tidak boleh menulis berkas bila pengguna memilih keluar tanpa menyimpan');
   assert.equal(prevented, false);
-  const raw = window.localStorage.getItem(api.draftKey);
+  const raw = recoveryContents;
   assert.ok(raw, 'draf harus sudah ditulis sebelum dialog');
   assert.equal(JSON.parse(raw).markdown, expected);
 });
@@ -326,7 +324,7 @@ test('gagal menyimpan saat mau keluar -> close dicegah, data tidak hilang', asyn
   }
   assert.equal(prevented, true, 'jendela harus tetap terbuka bila simpan gagal');
   assert.equal(api.isDirty(), true);
-  assert.ok(JSON.parse(window.localStorage.getItem(api.draftKey)).markdown.includes('Jangan hilang'));
+  assert.ok(JSON.parse(recoveryContents).markdown.includes('Jangan hilang'));
 });
 
 test('draf dari sesi sebelumnya ditawarkan dan dipulihkan', async () => {
@@ -346,8 +344,9 @@ test('draf dari sesi sebelumnya ditawarkan dan dipulihkan', async () => {
   assert.ok(asks.length > before);
   assert.match(asks[asks.length - 1], /Ditemukan draf/);
   assert.ok(api.getMarkdown().includes('Pulihkan saya'));
-  assert.equal(api.getPath(), '/home/u/draf.md');
+  assert.equal(api.getPath(), null, 'restore imports a copy rather than a writable source path');
   assert.equal(api.isDirty(), true, 'hasil pemulihan masih harus dianggap belum tersimpan');
+  window.localStorage.removeItem(api.draftKey);
 });
 
 test('menolak pemulihan draf menundanya tanpa menghapus cadangan', async () => {
@@ -363,17 +362,18 @@ test('menolak pemulihan draf menundanya tanpa menghapus cadangan', async () => {
   assert.equal(ok, false);
   assert.match(window.localStorage.getItem(api.draftKey), /Draf lama/);
   assert.ok(!api.getMarkdown().includes('Draf lama'));
+  window.localStorage.removeItem(api.draftKey);
 });
 
 test('simpan berhasil menghapus draf yang tersisa', async () => {
   await api.newDocument();
   api.quill.insertText(0, 'Akan disimpan', 'user');
   await api.flushDraft();
-  assert.ok(window.localStorage.getItem(api.draftKey), 'draf harus ada sebelum simpan');
+  assert.ok(recoveryContents, 'draf native harus ada sebelum simpan');
 
   assert.equal(await api.saveDocument(false), true);
-  assert.equal(window.localStorage.getItem(api.draftKey), null,
-    'draf harus dihapus setelah berkas tersimpan');
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  assert.equal(recoveryContents, null, 'workspace native dibersihkan setelah simpan');
 });
 
 
@@ -427,10 +427,10 @@ test('draf diperbarui juga setelah ketikan kedua saat dokumen masih kotor', asyn
   await api.newDocument();
   api.quill.insertText(0, 'Pertama', 'user');
   await new Promise((r) => setTimeout(r, 800));
-  const first = JSON.parse(window.localStorage.getItem(api.draftKey)).markdown;
+  const first = JSON.parse(recoveryContents).markdown;
   api.quill.insertText(0, 'Kedua ', 'user');
   await new Promise((r) => setTimeout(r, 800));
-  const second = JSON.parse(window.localStorage.getItem(api.draftKey)).markdown;
+  const second = JSON.parse(recoveryContents).markdown;
   assert.notEqual(first, second);
   assert.equal(second, api.getMarkdown());
 });
@@ -448,7 +448,7 @@ test('ketikan selama simpan berlangsung tetap kotor dan dicadangkan', async () =
     release();
     assert.equal(await saving, false, 'snapshot lama bukan seluruh perubahan terbaru');
     assert.equal(api.isDirty(), true);
-    assert.equal(JSON.parse(window.localStorage.getItem(api.draftKey)).markdown, api.getMarkdown());
+    assert.equal(JSON.parse(recoveryContents).markdown, api.getMarkdown());
   } finally { release(); pendingWrite = null; }
 });
 
@@ -501,11 +501,11 @@ test('mengetik berkelanjutan tetap mencadangkan sebelum berhenti', async () => {
     api.quill.insertText(0, String(i), 'user');
     await new Promise((r) => setTimeout(r, 450));
   }
-  const draft = JSON.parse(window.localStorage.getItem(api.draftKey));
+  const draft = JSON.parse(recoveryContents);
   assert.ok(draft, 'batas 3 detik harus menulis sebelum debounce sepi');
   assert.ok(draft.markdown.includes('0'));
   await api.flushDraft();
-  assert.equal(JSON.parse(window.localStorage.getItem(api.draftKey)).markdown, api.getMarkdown());
+  assert.equal(JSON.parse(recoveryContents).markdown, api.getMarkdown());
 });
 
 
@@ -1327,4 +1327,54 @@ test('cleanup gagal dilaporkan sebagai arsip tersisa, bukan gagal menyimpan doku
     assert.match(window.document.getElementById('file-feedback').textContent, /gagal dibersihkan/);
     assert.equal(window.document.getElementById('file-feedback').dataset.kind, 'warning');
   } finally { failRecoveryClear = false; api.discardDraft(); await new Promise((resolve) => setTimeout(resolve, 0)); }
+});
+
+test('native New/Open/Save tidak menghapus legacy recovery yang ditunda atau rusak', async () => {
+  await api.newDocument();
+  const storage = window.localStorage;
+  const raw = JSON.stringify({ version: 1, markdown: 'Legacy tertunda\n', path: '/original.md', savedAt: 1 });
+  try {
+    for (const source of [raw, '{corrupt-but-preserve']) {
+      storage.setItem(api.draftKey, source);
+      if (source === raw) {
+        nextAskResult = false;
+        assert.equal(await api.restoreDraftIfAny(), false);
+      }
+      nextAskResult = true;
+      assert.equal(await api.newDocument(), true);
+      api.quill.insertText(0, 'Pekerjaan terpisah', 'user');
+      await api.flushDraft();
+      assert.equal(storage.getItem(api.draftKey), source);
+      assert.equal(await api.saveDocument(false), true);
+      assert.equal(storage.getItem(api.draftKey), source);
+      assert.equal(await api.openDocument(), true);
+      assert.equal(storage.getItem(api.draftKey), source);
+    }
+  } finally { storage.removeItem(api.draftKey); nextAskResult = true; }
+});
+
+test('restore snapshot lama meminta tujuan Save baru dan tidak menulis source path otomatis', async () => {
+  await api.newDocument();
+  const originalPath = '/home/u/source-newer.md';
+  const raw = JSON.stringify({ version: 1, markdown: '# Older snapshot\n', path: originalPath, savedAt: 1 });
+  archivedRecoveries = [{ id: 'session-copy-save', raw, path: originalPath, savedAt: 1 }];
+  try {
+    assert.equal(await api.restoreDraftIfAny(), true);
+    assert.equal(api.getPath(), null);
+    assert.equal(api.isDirty(), true);
+    const before = tauriCalls.length;
+    const originalSave = window.__TAURI__.dialog.save;
+    let dialogs = 0;
+    window.__TAURI__.dialog.save = async () => { dialogs++; return null; };
+    try {
+      assert.equal(await api.saveDocument(false), false);
+      assert.equal(api.isDirty(), true);
+      assert.equal(api.getPath(), null);
+    } finally { window.__TAURI__.dialog.save = originalSave; }
+    assert.equal(dialogs, 1);
+    assert.equal(await api.saveDocument(false), true);
+    const writes = tauriCalls.slice(before).filter(([cmd]) => cmd === 'write_document');
+    assert.deepEqual(writes.map(([, args]) => args.path), ['/home/u/catatan-baru.md']);
+    assert.equal(archivedRecoveries[0].raw, raw);
+  } finally { archivedRecoveries = []; await api.flushDraft(); }
 });

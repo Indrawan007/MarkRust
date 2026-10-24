@@ -181,3 +181,12 @@ Putaran status backup async: epoch/generation mencegah hasil write lama mengubah
 indikator dokumen tersimpan/pengganti; cleanup gagal dibedakan dari gagal backup.
 209 tes frontend lulus. Tidak mengubah durability/format recovery native;
 cleanup arsip dan fallback isolation tetap belum selesai, tanpa build/push.
+
+### Prioritas urgent setelah review progres
+
+Tutup risiko kehilangan data terlebih dahulu: native workspace clear tidak
+menghapus cadangan legacy; semua restore menjadi salinan tanpa writable source
+path, sehingga Simpan meminta lokasi baru. 211 tes frontend lulus, termasuk
+pemisahan mock disk vs localStorage. Penghapusan arsip dibuat eksplisit kelak,
+bukan otomatis; isolasi fallback browser dan konflik eksternal belum selesai.
+Tetap tanpa build/install/push.
