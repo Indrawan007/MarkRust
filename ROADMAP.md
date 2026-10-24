@@ -176,3 +176,8 @@ keputusan boolean. Batal/dismiss/hasil tak dikenal tidak mengizinkan close;
 fallback browser membutuhkan konfirmasi discard terpisah. 207 tes frontend
 lulus. API existing dialog.message dipakai, tanpa Rust/capability baru.
 Uji Escape/X dan portal dialog native tetap menunggu izin build/validasi nyata.
+
+Putaran status backup async: epoch/generation mencegah hasil write lama mengubah
+indikator dokumen tersimpan/pengganti; cleanup gagal dibedakan dari gagal backup.
+209 tes frontend lulus. Tidak mengubah durability/format recovery native;
+cleanup arsip dan fallback isolation tetap belum selesai, tanpa build/push.

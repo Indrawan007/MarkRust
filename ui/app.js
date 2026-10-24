@@ -314,19 +314,27 @@ function boot() {
   const DRAFT_DEBOUNCE = 700;
   let draftTimer = null;
   let draftDeadline = null;
+  let draftStatusEpoch = 0;
   const draftError = document.getElementById('sb-draft-error');
 
   function writeDraftNow() {
     if (!dirty) return false;
+    const epoch = ++draftStatusEpoch;
+    const generation = documentGeneration;
+    const isCurrent = () => epoch === draftStatusEpoch && generation === documentGeneration && dirty;
     const draft = { markdown: getCanonicalMarkdown(), path: currentPath, savedAt: Date.now() };
     if (diskRecovery) {
       return diskRecovery.write(draft).then(() => {
-        draftError.hidden = true;
-        draftError.title = '';
+        if (isCurrent()) {
+          draftError.hidden = true;
+          draftError.title = '';
+        }
         return true;
       }, (err) => {
-        draftError.hidden = false;
-        draftError.title = String(err && err.message ? err.message : err);
+        if (isCurrent()) {
+          draftError.hidden = false;
+          draftError.title = String(err && err.message ? err.message : err);
+        }
         return false;
       });
     }
@@ -355,13 +363,18 @@ function boot() {
   }
 
   function discardDraft() {
+    const epoch = ++draftStatusEpoch;
     clearTimeout(draftDeadline);
     draftDeadline = null;
     draftError.hidden = true;
     clearTimeout(draftTimer);
     draftTimer = null;
     clearDraft(draftStorage);
-    if (diskRecovery) diskRecovery.clear().catch(() => { draftError.hidden = false; });
+    draftError.title = '';
+    if (diskRecovery) diskRecovery.clear().catch(() => {
+      if (epoch !== draftStatusEpoch) return;
+      fileFeedback('Cadangan sebelumnya gagal dibersihkan; berkas recovery mungkin masih ada.', 'warning');
+    });
   }
 
   function markDirty() {

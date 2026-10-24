@@ -40,6 +40,8 @@ let archivedRecoveries = [];
 let failCandidateRead = false;
 let failAsk = false;
 let failRecovery = false;
+let pendingRecoveryWrite = null;
+let failRecoveryClear = false;
 const DISK_DOC = '# Dokumen Dari Disk\n\nIsi dari berkas.\n';
 window.__TAURI__ = {
   core: {
@@ -50,6 +52,7 @@ window.__TAURI__ = {
         return 'data:image/png;base64,AAAA';
       }
       if (cmd === 'write_recovery') {
+        if (pendingRecoveryWrite) await pendingRecoveryWrite;
         if (failRecovery) throw new Error('disk full');
         recoveryContents = args.contents;
         // Mirror for legacy assertions, not used by production disk writes.
@@ -62,7 +65,10 @@ window.__TAURI__ = {
         return archivedRecoveries.find((row) => row.id === args.id)?.raw || null;
       }
       if (cmd === 'read_recovery') return recoveryContents;
-      if (cmd === 'clear_recovery') { recoveryContents = null; return; }
+      if (cmd === 'clear_recovery') {
+        if (failRecoveryClear) throw new Error('cleanup failed');
+        recoveryContents = null; return;
+      }
       if (cmd === 'read_document' && pendingRead) await pendingRead;
       if (cmd === 'write_document' && pendingWrite) await pendingWrite;
       if (cmd === 'write_document' && failWrite) throw new Error('disk penuh');
@@ -1288,4 +1294,37 @@ test('Batal/dismiss dialog close mempertahankan jendela tanpa write dan lock dil
     assert.equal(prevented, false);
     assert.equal(api.isDirty(), false);
   } finally { nextCloseResult = undefined; await api.flushDraft(); }
+});
+
+test('recovery write lama yang gagal setelah save tidak menyalakan warning dokumen bersih', async () => {
+  await api.newDocument();
+  api.quill.insertText(0, 'Tersimpan', 'user');
+  let reject;
+  pendingRecoveryWrite = new Promise((_resolve, fail) => { reject = fail; });
+  const flushing = api.flushDraft();
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(await api.saveDocument(false), true);
+    reject(new Error('old write failed'));
+    assert.equal(await flushing, false);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(api.isDirty(), false);
+    assert.equal(window.document.getElementById('sb-draft-error').hidden, true);
+    assert.equal(window.document.getElementById('sb-draft-error').title, '');
+  } finally { reject(new Error('done')); pendingRecoveryWrite = null; await flushing; }
+});
+
+test('cleanup gagal dilaporkan sebagai arsip tersisa, bukan gagal menyimpan dokumen', async () => {
+  await api.newDocument();
+  api.quill.insertText(0, 'Isi aman', 'user');
+  await api.flushDraft();
+  failRecoveryClear = true;
+  try {
+    assert.equal(await api.saveDocument(false), true);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(api.isDirty(), false);
+    assert.equal(window.document.getElementById('sb-draft-error').hidden, true);
+    assert.match(window.document.getElementById('file-feedback').textContent, /gagal dibersihkan/);
+    assert.equal(window.document.getElementById('file-feedback').dataset.kind, 'warning');
+  } finally { failRecoveryClear = false; api.discardDraft(); await new Promise((resolve) => setTimeout(resolve, 0)); }
 });

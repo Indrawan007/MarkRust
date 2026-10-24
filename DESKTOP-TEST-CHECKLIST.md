@@ -163,3 +163,9 @@ ini belum dijalankan di webview/OS nyata.
   tidak diperlakukan sebagai discard. Simpan batal/gagal tetap membuka app;
   discard hanya diteruskan jika backup berhasil. Mock Cancel lulus, perilaku
   Escape/X native BELUM DIUJI.
+
+- U17: jika write recovery lambat/gagal lalu dokumen disimpan/diganti, hasil lama
+  tidak boleh menyalakan indikator gagal backup pada dokumen bersih yang baru.
+  Cleanup recovery gagal setelah file sukses tersimpan harus memperingatkan
+  kemungkinan cadangan lama tersisa, bukan menyatakan file gagal disimpan.
+  Tes memakai queue IPC mock; simulasi kegagalan native belum dijalankan.

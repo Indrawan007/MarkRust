@@ -582,3 +582,19 @@ Batas terbuka:
 - Tidak build/install/push. Tombol tiga pilihan, pemetaan Escape/X dan label
   actual dialog plugin/portal di Arch tetap BELUM DIUJI; jangan menyamakan
   mock result Cancel dengan bukti key Escape native.
+
+## Tahap pemantapan 4 — status cadangan async yang kedaluwarsa
+
+- Setiap write recovery mendapat epoch status dan generation dokumen. Hasil
+  terlambat masih mengembalikan sukses/gagal sebenarnya ke caller, tetapi hanya
+  operasi terbaru untuk dokumen aktif yang masih dirty boleh mengubah indikator
+  cadangan. Discard membatalkan kepemilikan status write sebelumnya.
+- Error clear recovery kini dibedakan dari gagal backup: feedback menyatakan
+  cadangan lama mungkin masih ada, bukan menampilkan 'simpan berkas sekarang'
+  pada dokumen yang sebenarnya sudah tersimpan. Save tetap dianggap berhasil
+  bila write_document berhasil dan isi tidak berubah; cleanup bukan write file.
+- **209/209 tes frontend lulus**, termasuk write recovery lama gagal setelah
+  save dan kegagalan cleanup sesudah save. Isi/dirty/indikator tetap sesuai.
+- Ini koordinasi UI, bukan perubahan durability native atau penghapusan arsip.
+  Error localStorage.clearDraft masih best-effort; isolasi fallback/legacy dan
+  cleanup arsip native tetap terbuka. Tidak build/install/push atau tes Rust.
