@@ -1411,3 +1411,75 @@ test('external edit blocks Save and save-on-close; Save As preserves external so
     assert.equal(await api.saveDocument(false), true, 'baseline advances after regular Save too');
   } finally { nextCloseResult = undefined; await api.flushDraft(); }
 });
+
+function mockRecoveryDialog() {
+  const dialog = window.document.getElementById('recovery-dialog');
+  const show = dialog.showModal;
+  const close = dialog.close;
+  dialog.showModal = () => { dialog.open = true; };
+  dialog.close = () => { dialog.open = false; dialog.dispatchEvent(new window.Event('close')); };
+  return { dialog, restore() {
+    if (dialog.open) dialog.dispatchEvent(new window.Event('cancel', { cancelable: true }));
+    if (show === undefined) delete dialog.showModal; else dialog.showModal = show;
+    if (close === undefined) delete dialog.close; else dialog.close = close;
+  } };
+}
+
+test('export arsip tidak memulihkan/mengubah dokumen kotor dan tidak membersihkan sumber', async () => {
+  await api.newDocument();
+  api.quill.insertText(0, 'Dokumen aktif', 'user');
+  api.quill.setSelection(1, 3);
+  const before = api.getMarkdown();
+  const raw = JSON.stringify({ version: 1, markdown: '# Export arsip\n', savedAt: 1 });
+  archivedRecoveries = [{ id: 'session-export', raw, savedAt: 1 }];
+  const mock = mockRecoveryDialog();
+  const exporting = api.exportRecoveryArchive();
+  try {
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.match(window.document.getElementById('recovery-title').textContent, /diekspor/);
+    assert.equal(await api.exportRecoveryArchive(), false);
+    assert.equal(await api.newDocument(), false);
+    window.document.querySelector('#recovery-list button').click();
+    assert.equal(await exporting, true);
+    assert.equal(api.getMarkdown(), before);
+    assert.equal(api.isDirty(), true);
+    assert.equal(api.getPath(), null);
+    assert.equal(archivedRecoveries[0].raw, raw);
+    assert.equal(diskDocuments.get('/home/u/catatan-baru.md'), '# Export arsip\n');
+    assert.equal(window.document.getElementById('btn-archives').disabled, false);
+  } finally { mock.restore(); await exporting; archivedRecoveries = []; await api.flushDraft(); }
+});
+
+test('export cancel, read/write failure and active-path rejection retain editor and archives', async () => {
+  await api.newDocument();
+  await api.openDocument();
+  api.quill.insertText(0, 'Tetap aktif ', 'user');
+  const before = api.getMarkdown();
+  const path = api.getPath();
+  const raw = JSON.stringify({ version: 1, markdown: 'Archive unchanged\n', savedAt: 1 });
+  archivedRecoveries = [{ id: 'session-export-errors', raw, savedAt: 1 }];
+  const mock = mockRecoveryDialog();
+  const save = window.__TAURI__.dialog.save;
+  try {
+    for (const mode of ['escape', 'save-cancel', 'read-error', 'write-error', 'active-path']) {
+      failCandidateRead = mode === 'read-error';
+      failWrite = mode === 'write-error';
+      window.__TAURI__.dialog.save = async () => mode === 'save-cancel' ? null : mode === 'active-path' ? path : '/export.md';
+      const writes = tauriCalls.filter(([cmd]) => cmd === 'write_document').length;
+      const exporting = api.exportRecoveryArchive();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      if (mode === 'escape') mock.dialog.dispatchEvent(new window.Event('cancel', { cancelable: true }));
+      else window.document.querySelector('#recovery-list button').click();
+      assert.equal(await exporting, false);
+      if (mode !== 'write-error') assert.equal(tauriCalls.filter(([cmd]) => cmd === 'write_document').length, writes);
+      assert.equal(api.getMarkdown(), before);
+      assert.equal(api.getPath(), path);
+      assert.equal(api.isDirty(), true);
+      assert.equal(archivedRecoveries[0].raw, raw);
+      assert.equal(window.document.getElementById('btn-archives').disabled, false);
+    }
+  } finally {
+    mock.restore(); archivedRecoveries = []; failCandidateRead = false; failWrite = false;
+    window.__TAURI__.dialog.save = save; await api.flushDraft();
+  }
+});

@@ -902,7 +902,7 @@ function boot() {
   async function restoreDraftIfAny() {
     if (closeInProgress || restoreInProgress || openInProgress || newInProgress || saveInProgress || hasOpenAppDialog() || dirty) return false;
     restoreInProgress = true;
-    for (const action of ['new', 'open', 'save']) fileBusy(action, true);
+    for (const action of ['new', 'open', 'save', 'archives']) fileBusy(action, true);
     try {
       return await performRestoreDraft();
     } catch (err) {
@@ -912,9 +912,46 @@ function boot() {
       return false;
     } finally {
       restoreInProgress = false;
-      for (const action of ['new', 'open', 'save']) fileBusy(action, false);
+      for (const action of ['new', 'open', 'save', 'archives']) fileBusy(action, false);
     }
   }
+
+  async function exportRecoveryArchive() {
+    if (closeInProgress || restoreInProgress || openInProgress || newInProgress || saveInProgress || hasOpenAppDialog()) return false;
+    // Read-only archive action: allowed even when the current editor is dirty.
+    restoreInProgress = true;
+    for (const action of ['new', 'open', 'save', 'archives']) fileBusy(action, true);
+    try {
+      const rows = await recoveryStore.list();
+      const legacy = tauri ? readDraft(draftStorage) : null;
+      const legacyId = 'legacy-local-storage';
+      if (legacy) rows.push({ id: legacyId, path: legacy.path, savedAt: legacy.savedAt });
+      if (!rows.length) {
+        fileFeedback('Tidak ada cadangan arsip untuk diekspor. Simpan dokumen aktif lewat Simpan.');
+        return false;
+      }
+      const id = await pickRecovery(document, rows, { title: 'Pilih cadangan untuk diekspor sebagai Markdown' });
+      if (!id) { fileFeedback('Ekspor cadangan dibatalkan. Arsip tetap disimpan.'); return false; }
+      const draft = tauri && id === legacyId ? readDraft(draftStorage) : await recoveryStore.select(id);
+      if (!draft) throw new Error('Cadangan sudah tidak tersedia');
+      const filename = 'salinan-cadangan.md';
+      const target = tauri
+        ? await saveWithTauri(tauri, { path: filename, contents: draft.markdown, saveAs: true, forbiddenPaths: currentPath ? [currentPath] : [] })
+        : downloadBrowserFile(filename, draft.markdown);
+      if (!target) { fileFeedback('Ekspor cadangan dibatalkan. Arsip tetap disimpan.'); return false; }
+      fileFeedback(tauri
+        ? 'Salinan cadangan diekspor: ' + basename(target) + '. Arsip asal tetap disimpan.'
+        : 'Unduhan salinan cadangan dimulai. Arsip asal tetap disimpan; periksa hasil unduhan.');
+      return true;
+    } catch (err) {
+      fileFeedback('Ekspor cadangan gagal. Arsip asal tetap disimpan. ' + String(err?.message || err), 'error');
+      return false;
+    } finally {
+      restoreInProgress = false;
+      for (const action of ['new', 'open', 'save', 'archives']) fileBusy(action, false);
+    }
+  }
+  document.getElementById('btn-archives').addEventListener('click', exportRecoveryArchive);
 
   async function performRestoreDraft() {
     if (dirty) return false; // Recovery must never overwrite current unsaved work.
@@ -1155,6 +1192,7 @@ function boot() {
     saveDocument: saveDocument,
     handleMenuAction: handleMenuAction,
     restoreDraftIfAny: restoreDraftIfAny,
+    exportRecoveryArchive: exportRecoveryArchive,
     loadRemoteImages: loadRemoteImages,
     flushDraft: flushDraft,
     discardDraft: discardDraft,

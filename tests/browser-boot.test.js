@@ -52,3 +52,31 @@ test('browser boot defers legacy; editing, saving and importing use a separate w
     api.markClean();
   }
 });
+
+test('browser archive export downloads a copy without changing dirty editor or legacy bytes', async () => {
+  api.quill.insertText(0, 'Aktif ', 'user');
+  const before = api.getMarkdown();
+  const dialog = window.document.getElementById('recovery-dialog');
+  dialog.showModal = () => { dialog.open = true; };
+  dialog.close = () => { dialog.open = false; dialog.dispatchEvent(new window.Event('close')); };
+  const create = URL.createObjectURL;
+  const click = window.HTMLAnchorElement.prototype.click;
+  let blob;
+  URL.createObjectURL = (value) => { blob = value; return 'blob:test-export'; };
+  window.HTMLAnchorElement.prototype.click = () => {};
+  try {
+    const exporting = api.exportRecoveryArchive();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    window.document.querySelector('#recovery-list button').click();
+    assert.equal(await exporting, true);
+    assert.equal(await blob.text(), 'Draf browser lama\n');
+    assert.equal(api.getMarkdown(), before);
+    assert.equal(api.isDirty(), true);
+    assert.equal(window.localStorage.getItem(DRAFT_KEY), original);
+    assert.match(window.document.getElementById('file-feedback').textContent, /Unduhan.*dimulai/);
+  } finally {
+    URL.createObjectURL = create;
+    window.HTMLAnchorElement.prototype.click = click;
+    api.discardDraft(); api.markClean();
+  }
+});

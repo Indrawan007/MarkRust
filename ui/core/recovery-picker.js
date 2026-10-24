@@ -3,10 +3,12 @@ import { formatSavedAt } from './drafts.js';
 const activePickers = new WeakMap();
 
 // One picker per dialog. Cancellation never selects or deletes a recovery.
-export function pickRecovery(document, rows) {
+export function pickRecovery(document, rows, options = {}) {
   const dialog = document.getElementById('recovery-dialog');
   if (activePickers.has(dialog)) return activePickers.get(dialog);
   if (dialog.open) return Promise.resolve(null);
+  const title = document.getElementById('recovery-title');
+  if (title) title.textContent = options.title || 'Pilih draf untuk dipulihkan';
   const list = document.getElementById('recovery-list');
   const previousFocus = document.activeElement;
   const cleanups = [];

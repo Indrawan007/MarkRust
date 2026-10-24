@@ -78,6 +78,9 @@ export async function saveWithTauri(tauri, options) {
     target = await tauri.dialog.save(dialogOpts);
   }
   if (!target) return null;
+  if (opts.forbiddenPaths?.includes(target)) {
+    throw new Error('Pilih lokasi salinan yang berbeda dari berkas aktif.');
+  }
   if (opts.path && !opts.saveAs) {
     const blocked = (message, code) => Object.assign(new Error(message), { code });
     if (typeof opts.expectedContents !== 'string') {

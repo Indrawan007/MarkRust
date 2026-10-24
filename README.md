@@ -436,3 +436,16 @@ bahwa fallback masih memakai satu key untuk semua pekerjaan.
 Cleanup/ekspor arsip belum tersedia; quota localStorage tetap berlaku dan belum
 ada deteksi sesi tab lain yang aktif. Persistensi/private-mode/browser restart
 nyata serta native Arch/Hyprland belum diuji. Tidak build/install/push.
+
+### Ekspor cadangan tanpa memulihkan
+
+Tombol **Ekspor cadangan** pada toolbar membuka pemilih arsip yang bisa dibaca.
+Pilih cadangan lalu simpan salinan Markdown (nama saran `salinan-cadangan.md`).
+Dokumen aktif—termasuk tulisan yang belum disimpan—tidak diganti; arsip sumber
+juga tidak dihapus. Browser memulai unduhan, jadi periksa hasilnya sendiri.
+
+Ekspor hanya isi Markdown snapshot terbaca, bukan metadata/seluruh versi/cache
+gambar. Cadangan rusak tetap dipertahankan. Tujuan yang sama persis dengan path
+aktif ditolak, tetapi alias/symlink belum dikenali. Cleanup/penghapusan arsip
+belum tersedia. **221 tes frontend lulus**, tanpa build/install/push; dialog
+native dan hasil ekspor di Arch/Hyprland belum diverifikasi nyata.

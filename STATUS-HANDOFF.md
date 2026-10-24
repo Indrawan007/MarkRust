@@ -658,3 +658,26 @@ Batas terbuka:
   sebagai kandidat dan diimpor sebagai salinan; bukan dukungan multi-tab penuh.
   Persistensi private mode/unload/browser restart nyata belum diuji.
 - Tidak ada Rust/build/install/push. Native Arch/Hyprland tetap belum divalidasi.
+
+## Urgent arsip — ekspor salinan sebelum cleanup
+
+- Tombol toolbar Ekspor cadangan membuka picker khusus ekspor; tersedia ketika
+  editor dirty karena tidak memulihkan/mengganti isi. Native memakai read-only
+  select + Save dialog/write_document yang sudah ada; legacy localStorage valid
+  juga disertakan. Browser memulai download salinan Markdown.
+- Picker memakai judul sesuai aksi dan tetap mempertahankan cancel/focus/cleanup.
+  Selama export, pengunci recovery menahan operasi penggantian/close; typing
+  tetap boleh. Selesai/gagal/cancel tidak mengubah path/dirty/baseline dokumen,
+  tidak memanggil clear dan tidak menghapus/mengubah sumber arsip.
+- Nama saran salinan-cadangan.md. Tujuan yang persis sama dengan currentPath
+  ditolak sebelum write. Ini guard string, bukan canonical-path/symlink/inode
+  equivalence: alias path tetap batas terbuka. Dialog dapat memilih overwrite
+  file lain secara eksplisit; pengguna harus memilih tujuan salinan yang tepat.
+- Ekspor ini hanya teks Markdown snapshot yang terbaca, bukan raw JSON/seluruh
+  versi, metadata atau gambar terunduh. Item rusak tetap disabled dan disimpan.
+- **221/221 tes frontend lulus**: export native dirty editor, lock, Escape/cancel,
+  read/write error, active-path rejection; export browser memeriksa isi Blob dan
+  preservation legacy/editor. Tidak ada Rust/IPC baru, build/install/push.
+- Penghapusan arsip dan quota management masih belum diimplementasikan. Ekspor
+  browser hanya menyatakan download dimulai, tidak membuktikan tersimpan. Uji
+  portal/native/Wayland nyata tetap belum dilakukan.

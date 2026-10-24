@@ -189,3 +189,10 @@ ini belum dijalankan di webview/OS nyata.
   arsip. Quota/private-mode memberi error, bukan membuang arsip. Tab lain bisa
   tampil sebagai kandidat karena belum ada liveness/locking; jangan menganggap
   dukungan multi-tab selesai. jsdom lulus, browser nyata/restart belum diuji.
+
+- U21: klik Ekspor cadangan saat editor dirty, pilih arsip → dialog simpan native
+  menyarankan salinan-cadangan.md. Isi/editor/path/dirty tetap, arsip tidak dihapus.
+  Cancel picker/Save, error read/write harus melepas busy. Memilih currentPath
+  persis ditolak; alias/symlink bukan cakupan guard frontend. Bandingkan Markdown
+  hasil ekspor dan sumber; metadata/semua versi/cache gambar tidak termasuk.
+  Browser hanya memulai download. Portal native dan hasil unduhan nyata BELUM DIUJI.

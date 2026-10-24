@@ -203,3 +203,9 @@ read-only import sesi/legacy, corrupt rows dan clear hanya sesi sendiri. 218 tes
 frontend lulus termasuk boot browser + Quill/jsdom. Menutup celah satu-key
 tertimpa saat defer/edit/save, bukan klaim multi-tab penuh atau persistensi
 private mode. Cleanup/ekspor arsip dan tekanan quota masih tersisa; tanpa build.
+
+Ekspor cadangan read-only ditambahkan sebagai langkah sebelum cleanup: toolbar
+→ pilih arsip → salinan Markdown, tanpa mengubah editor/arsip. Native memakai
+API yang sudah ada, browser download. 221 tes frontend lulus. Arsip rusak dan
+versi historis/raw belum bisa diekspor; penghapusan/quota tetap tersisa. Guard
+tujuan aktif berbasis string, bukan deteksi alias inode. Tanpa build/install/push.
