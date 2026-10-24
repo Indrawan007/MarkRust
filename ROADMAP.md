@@ -190,3 +190,10 @@ path, sehingga Simpan meminta lokasi baru. 211 tes frontend lulus, termasuk
 pemisahan mock disk vs localStorage. Penghapusan arsip dibuat eksplisit kelak,
 bukan otomatis; isolasi fallback browser dan konflik eksternal belum selesai.
 Tetap tanpa build/install/push.
+
+### Urgent berikutnya — konflik eksternal (preflight, bukan atomik)
+
+Baseline isi dari Open/save dibandingkan melalui read_document sebelum Simpan
+biasa. Konflik/target tak terbaca menahan write dan save-on-close, mengarahkan
+Save As eksplisit. 214 tes frontend lulus. Ini belum menutup race read→write;
+CAS/locking native dan uji dua proses tetap belum ada. Tanpa build/install/push.

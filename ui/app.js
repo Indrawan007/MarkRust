@@ -280,6 +280,7 @@ function boot() {
   const btnLoadImages = document.getElementById('sb-load-images');
   let currentMode = 'wysiwyg';
   let currentPath = null;
+  let diskBaseline = null;
   let dirty = false;
   let documentGeneration = 0;
   let editRevision = 0;
@@ -638,6 +639,7 @@ function boot() {
       if (!documentUnchanged(stamp)) return false;
       discardDraft();
       currentPath = null;
+      diskBaseline = null;
       applyDocument('');
       markClean();
       fileFeedback('Dokumen baru.');
@@ -689,6 +691,7 @@ function boot() {
       }
       discardDraft();
       currentPath = result.path;
+      diskBaseline = tauri ? { path: result.path, contents: result.contents } : null;
       applyDocument(result.contents);
       markClean();
       fileFeedback('Dibuka: ' + basename(result.path));
@@ -716,7 +719,8 @@ function boot() {
       let savedPath;
       if (tauri) {
         savedPath = await saveWithTauri(tauri, {
-          path: currentPath, contents: contents, saveAs: !!saveAs
+          path: currentPath, contents: contents, saveAs: !!saveAs,
+          expectedContents: diskBaseline?.path === currentPath ? diskBaseline.contents : undefined
         });
       } else {
         savedPath = downloadBrowserFile(
@@ -729,6 +733,7 @@ function boot() {
         return false;
       }
       currentPath = savedPath;
+      diskBaseline = tauri ? { path: savedPath, contents } : null;
       if (revision !== editRevision || contents !== getCanonicalMarkdown()) {
         refreshTitle();
         flushDraft(); // Preserve edits made while the disk write/dialog was pending.
@@ -740,7 +745,8 @@ function boot() {
       fileFeedback(tauri ? 'Tersimpan: ' + basename(savedPath) : 'Unduhan dimulai. Periksa hasilnya di browser.');
       return true;
     } catch (err) {
-      fileFeedback('Gagal menyimpan. Perubahan belum dianggap tersimpan.', 'error');
+      const conflict = ['DOCUMENT_CONFLICT', 'DOCUMENT_CHECK_FAILED'].includes(err?.code);
+      fileFeedback(conflict ? err.message : 'Gagal menyimpan. Perubahan belum dianggap tersimpan.', conflict ? 'warning' : 'error');
       await showError(tauri, err && err.message ? err.message : String(err));
       return false;
     } finally {
@@ -821,6 +827,7 @@ function boot() {
       // Browser File exposes only a basename, not a trustworthy native path.
       // Native Save must ask for a destination, not write to a relative path.
       currentPath = tauri ? null : result.path;
+      diskBaseline = null;
       applyDocument(result.contents);
       markClean();
       fileFeedback('Dibuka: ' + basename(result.path) + (tauri ? ' — pilih lokasi saat menyimpan.' : ''));
@@ -955,6 +962,7 @@ function boot() {
     // Recovery can predate external changes to its source file. Import as a
     // copy: ordinary Save must request a destination, not overwrite that path.
     currentPath = null;
+    diskBaseline = null;
     applyDocument(draft.markdown);
     markClean();          // reset dulu supaya markDirty() tidak di-skip
     markDirty();          // dokumen hasil pemulihan memang belum tersimpan

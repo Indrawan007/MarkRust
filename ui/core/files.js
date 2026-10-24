@@ -78,6 +78,21 @@ export async function saveWithTauri(tauri, options) {
     target = await tauri.dialog.save(dialogOpts);
   }
   if (!target) return null;
+  if (opts.path && !opts.saveAs) {
+    const blocked = (message, code) => Object.assign(new Error(message), { code });
+    if (typeof opts.expectedContents !== 'string') {
+      throw blocked('Versi awal berkas tidak tersedia. Gunakan Simpan Sebagai.', 'DOCUMENT_CHECK_FAILED');
+    }
+    let current;
+    try {
+      current = await tauri.core.invoke('read_document', { path: target });
+    } catch {
+      throw blocked('Berkas tidak dapat diperiksa atau sudah dihapus. Gunakan Simpan Sebagai; penulisan dibatalkan.', 'DOCUMENT_CHECK_FAILED');
+    }
+    if (current !== opts.expectedContents) {
+      throw blocked('Berkas berubah di luar MarkRust. Gunakan Simpan Sebagai agar versi lain tidak tertimpa.', 'DOCUMENT_CONFLICT');
+    }
+  }
   await tauri.core.invoke('write_document', { path: target, contents: opts.contents || '' });
   return target;
 }

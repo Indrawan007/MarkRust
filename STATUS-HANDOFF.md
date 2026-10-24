@@ -618,3 +618,23 @@ Batas terbuka:
 - Legacy dipertahankan konservatif, dapat ditawarkan lagi sampai ada cleanup
   eksplisit. Cleanup arsip/quota dan isolasi fallback browser masih terbuka.
   Tidak ada build/install/push; perubahan Rust sebelumnya tetap belum diuji.
+
+## Prioritas urgent — preflight konflik berkas sebelum Simpan biasa
+
+- Editor menyimpan baseline isi disk persis saat Open native dan setelah setiap
+  write sukses (termasuk snapshot yang tersimpan sementara ada ketikan baru).
+  Baseline tidak diperbarui oleh hasil save dokumen/generation yang sudah lama.
+- Simpan biasa ke path aktif membaca disk lagi via read_document; baseline
+  hilang, isi berbeda, file hilang/tidak terbaca/terlalu besar membatalkan write.
+  Feedback mengarahkan ke Simpan Sebagai; isi editor/dirty/path dipertahankan.
+- Save As tetap keputusan tujuan eksplisit melalui dialog, bukan bypass otomatis
+  akibat konflik. Restore/drop native tetap salinan tanpa path. Baseline direset
+  untuk New/drop/restore, diperbarui untuk Open dan save sukses.
+- **214/214 tes frontend lulus**: tidak ada write saat konflik/read error/baseline
+  hilang, save-on-close tertahan, Save As menyimpan salinan, baseline maju untuk
+  beberapa save berturut-turut. Mock disk kini menyimpan isi per path.
+- Batas penting: ini preflight berbasis isi, BUKAN compare-and-swap atomik. Proses
+  lain masih bisa mengubah file antara read dan write; tidak mengecek inode/
+  metadata bila byte isi sama. Pemeriksaan native atomik/locking lintas proses
+  belum diterapkan. Save As dapat sengaja menimpa tujuan yang dipilih pengguna.
+- Tidak ada perubahan Rust/IPC, build/install/push. Uji native GUI/disk belum ada.

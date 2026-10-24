@@ -79,11 +79,14 @@ test('openWithTauri menolak bila dialog tidak ada', async () => {
     /Dialog Tauri tidak tersedia/);
 });
 
-test('saveWithTauri langsung menulis bila path sudah ada', async () => {
+test('saveWithTauri memeriksa versi disk sebelum menulis path aktif', async () => {
   const t = fakeTauri();
-  const saved = await saveWithTauri(t, { path: '/home/u/lama.md', contents: 'isi' });
+  const saved = await saveWithTauri(t, { path: '/home/u/lama.md', contents: 'isi', expectedContents: '# Dari disk\n\nIsi.\n' });
   assert.equal(saved, '/home/u/lama.md');
-  assert.deepEqual(t.calls, [['invoke', 'write_document', { path: '/home/u/lama.md', contents: 'isi' }]]);
+  assert.deepEqual(t.calls, [
+    ['invoke', 'read_document', { path: '/home/u/lama.md' }],
+    ['invoke', 'write_document', { path: '/home/u/lama.md', contents: 'isi' }]
+  ]);
 });
 
 test('saveWithTauri membuka dialog bila saveAs atau belum punya path', async () => {
@@ -214,4 +217,24 @@ test('browser close fallback requires an explicit second confirmation to discard
       assert.equal(remaining.length, 0);
     }
   } finally { globalThis.window = original; }
+});
+
+test('normal save refuses missing baseline, changed contents, or unreadable target without writing', async () => {
+  const missing = fakeTauri();
+  await assert.rejects(saveWithTauri(missing, { path: '/old.md', contents: 'ours' }), { code: 'DOCUMENT_CHECK_FAILED' });
+  assert.equal(missing.calls.length, 0);
+  const changed = fakeTauri({ invokeResult: 'theirs' });
+  await assert.rejects(saveWithTauri(changed, { path: '/old.md', contents: 'ours', expectedContents: 'before' }), { code: 'DOCUMENT_CONFLICT' });
+  assert.deepEqual(changed.calls.map((call) => call[1]), ['read_document']);
+  const broken = fakeTauri();
+  const commands = [];
+  broken.core.invoke = async (cmd) => { commands.push(cmd); throw new Error('deleted'); };
+  await assert.rejects(saveWithTauri(broken, { path: '/old.md', contents: 'ours', expectedContents: 'before' }), { code: 'DOCUMENT_CHECK_FAILED' });
+  assert.deepEqual(commands, ['read_document']);
+});
+
+test('Save As remains an explicit destination decision even when normal-save baseline differs', async () => {
+  const t = fakeTauri({ saveResult: '/chosen.md' });
+  assert.equal(await saveWithTauri(t, { path: '/old.md', contents: 'ours', expectedContents: 'before', saveAs: true }), '/chosen.md');
+  assert.deepEqual(t.calls.map((call) => call[0] === 'invoke' ? call[1] : call[0]), ['save', 'write_document']);
 });

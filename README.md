@@ -411,3 +411,16 @@ localStorage. Arsip native dan legacy ditahan secara konservatif; cleanup
 arsip eksplisit dan isolasi fallback browser masih belum selesai. Baseline
 **211 tes frontend lulus**; perubahan Rust recovery belum dikompilasi/diuji,
 serta GUI Arch/Hyprland belum diverifikasi. Tidak build/install/push pada tahap ini.
+
+### Pemeriksaan konflik sebelum Simpan biasa
+
+Pada revisi pemantapan terbaru, Simpan biasa membandingkan isi disk dengan
+versi terakhir yang dibaca/disimpan. Jika berbeda, baseline tidak tersedia, atau
+berkas tidak dapat dibaca, penulisan ditolak dan pengguna diarahkan ke Simpan
+Sebagai. Pilih tujuan baru untuk mempertahankan kedua versi.
+
+Ini **preflight frontend, bukan pemeriksaan atomik**: perubahan oleh proses lain
+masih bisa terjadi di antara read dan write. Save As tetap dapat sengaja menimpa
+berkas pilihan pengguna. 214 tes frontend lulus; belum uji native/dua proses,
+tidak build/install/push. Uraian sebelumnya tentang konflik yang belum tersedia
+kini merujuk pada penanganan atomik yang masih belum diterapkan.

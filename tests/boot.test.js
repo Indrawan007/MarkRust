@@ -42,6 +42,7 @@ let failAsk = false;
 let failRecovery = false;
 let pendingRecoveryWrite = null;
 let failRecoveryClear = false;
+const diskDocuments = new Map();
 const DISK_DOC = '# Dokumen Dari Disk\n\nIsi dari berkas.\n';
 window.__TAURI__ = {
   core: {
@@ -70,7 +71,8 @@ window.__TAURI__ = {
       if (cmd === 'read_document' && pendingRead) await pendingRead;
       if (cmd === 'write_document' && pendingWrite) await pendingWrite;
       if (cmd === 'write_document' && failWrite) throw new Error('disk penuh');
-      return cmd === 'read_document' ? DISK_DOC : null;
+      if (cmd === 'write_document') diskDocuments.set(args.path, args.contents);
+      return cmd === 'read_document' ? (diskDocuments.get(args.path) ?? DISK_DOC) : null;
     }
   },
   dialog: {
@@ -1377,4 +1379,35 @@ test('restore snapshot lama meminta tujuan Save baru dan tidak menulis source pa
     assert.deepEqual(writes.map(([, args]) => args.path), ['/home/u/catatan-baru.md']);
     assert.equal(archivedRecoveries[0].raw, raw);
   } finally { archivedRecoveries = []; await api.flushDraft(); }
+});
+
+test('external edit blocks Save and save-on-close; Save As preserves external source and refreshes baseline', async () => {
+  await api.newDocument();
+  assert.equal(await api.openDocument(), true);
+  const path = api.getPath();
+  api.quill.insertText(0, 'Perubahan kita ', 'user');
+  const ours = api.getMarkdown();
+  diskDocuments.set(path, 'Versi aplikasi lain\n');
+  const before = tauriCalls.filter(([cmd]) => cmd === 'write_document').length;
+  assert.equal(await api.saveDocument(false), false);
+  assert.equal(api.getPath(), path);
+  assert.equal(api.isDirty(), true);
+  assert.equal(api.getMarkdown(), ours);
+  assert.equal(diskDocuments.get(path), 'Versi aplikasi lain\n');
+  assert.match(window.document.getElementById('file-feedback').textContent, /berubah di luar MarkRust/);
+  nextCloseResult = 'Simpan';
+  let prevented = false;
+  try {
+    await closeHandlers.at(-1)({ preventDefault() { prevented = true; } });
+    assert.equal(prevented, true);
+    assert.equal(tauriCalls.filter(([cmd]) => cmd === 'write_document').length, before);
+    assert.equal(await api.saveDocument(true), true);
+    assert.notEqual(api.getPath(), path);
+    assert.equal(diskDocuments.get(path), 'Versi aplikasi lain\n');
+    assert.equal(diskDocuments.get(api.getPath()), ours);
+    api.quill.insertText(0, 'Berikutnya ', 'user');
+    assert.equal(await api.saveDocument(false), true, 'baseline advances after Save As');
+    api.quill.insertText(0, 'Lagi ', 'user');
+    assert.equal(await api.saveDocument(false), true, 'baseline advances after regular Save too');
+  } finally { nextCloseResult = undefined; await api.flushDraft(); }
 });

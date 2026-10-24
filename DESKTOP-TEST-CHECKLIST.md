@@ -176,3 +176,9 @@ ini belum dijalankan di webview/OS nyata.
   sumber dari snapshot lama. Uji file sumber yang sudah diedit aplikasi lain;
   isinya harus tetap sampai pengguna sengaja memilih overwrite. Belum diuji
   native; ini bukan implementasi deteksi konflik eksternal.
+
+- U19: buka dokumen, edit di MarkRust, lalu ubah/hapus file lewat aplikasi lain.
+  Simpan biasa harus ditolak tanpa write, dirty/isi tetap. Save-on-close juga
+  tetap membuka jendela. Save As ke tujuan baru mempertahankan file eksternal.
+  Uji save berikutnya memakai baseline terbaru. Preflight bukan locking: race
+  perubahan eksternal antara check/write tetap terbuka; belum diuji native.
