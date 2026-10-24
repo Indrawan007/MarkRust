@@ -244,3 +244,19 @@ Cargo.lock harus diselaraskan lagi dengan reqwest/base64/image sebelum --locked.
 Verifikasi downloader native: commit `41b0e37`, CI `40087345454` **success**:
 Node 159 tes serta build/test Rust di Linux, Windows, macOS lulus. Bundel rilis
 skipped. Ini tidak mengubah status BELUM DIUJI pada checklist webview/network.
+
+## Update tenggat DNS native
+
+Batas resolver OS pada catatan M3 sebelumnya kini ditangani dengan tenggat
+caller **5 detik**: lookup berjalan pada satu worker DNS khusus, dan caller
+kembali dengan error ketika tenggat habis. Lookup OS sendiri tidak dapat
+dibatalkan; slot tetap sibuk sampai lookup itu benar-benar selesai, sehingga
+percobaan ulang ditolak daripada menumpuk thread. Jika lookup tidak pernah
+kembali, pemuatan hostname tetap ditolak sampai proses dimulai ulang. IP literal
+melewati lookup tetapi tetap wajib lolos validasi tujuan publik di downloader.
+
+Tes Rust deterministik memakai resolver injeksi/channel (tanpa DNS internet):
+timeout, penolakan worker kedua, serta pelepasan slot pada sukses/gagal.
+Baseline JS tetap **159/159 lulus**. Ini batas durasi pemanggil lookup, bukan
+jaminan bahwa OS membatalkan operasi DNS atau bahwa seluruh pipeline decode
+memiliki deadline wall-clock. Uji webview/network hostile tetap belum selesai.

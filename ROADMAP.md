@@ -183,3 +183,10 @@ Perintah unduh HTTPS terbatas + pin DNS IPv4 publik + rasterisasi PNG lokal
 sudah diimplementasikan; https dihapus dari img-src desktop. 159 tes JS lulus.
 Redirect/HTTP/SVG/IPv6-only sengaja tidak didukung. DNS resolver OS dan uji
 end-to-end hostile network/webview masih terbuka; lihat STATUS-HANDOFF.md.
+
+### M3 parsial — tenggat DNS
+
+Caller lookup DNS kini memiliki deadline 5 detik dan maksimum satu worker DNS
+tertahan per proses. Retry ditolak selama lookup lama belum selesai; OS lookup
+tidak dibatalkan paksa. Tes Rust menggunakan resolver injeksi dan channel.
+Verifikasi hostile-network/webview nyata tetap diperlukan.

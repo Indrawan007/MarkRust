@@ -70,3 +70,9 @@ Gunakan dokumen sintetis dan folder uji, bukan berkas kerja satu-satunya.
   langsung. Browser fallback sengaja memiliki kebijakan berbeda.
 - P09: ganti dokumen ketika unduh sedang berjalan -> hasil lama tidak masuk
   dokumen baru. Uji DNS lambat; timeout resolver OS masih merupakan batas terbuka.
+
+Update P09: caller lookup hostname sekarang memiliki deadline 5 detik. Uji DNS
+tertahan: error harus kembali, UI tetap responsif, retry tidak menambah worker
+DNS selama lookup lama belum selesai. Lookup OS bukan dibatalkan; pemuatan
+hostname dapat tetap ditolak sampai resolver selesai/proses diulang. Pengujian
+ini belum dijalankan di webview/OS nyata.

@@ -1,11 +1,53 @@
 //! Restricted, opt-in image downloader. No webview HTTP client is exposed.
-use std::{io::{Read, Cursor}, net::{IpAddr, Ipv4Addr, SocketAddr, ToSocketAddrs}, sync::Mutex, time::Duration};
+use std::{io::{Read, Cursor}, net::{IpAddr, Ipv4Addr, SocketAddr, ToSocketAddrs}, sync::{Mutex, Arc, OnceLock, atomic::{AtomicBool, Ordering}, mpsc}, time::Duration};
 use base64::Engine;
 use reqwest::{blocking::Client, redirect::Policy, Url};
 
 const MAX_INPUT: u64 = 5 * 1024 * 1024;
 const MAX_OUTPUT: usize = 8 * 1024 * 1024;
 static DOWNLOAD: Mutex<()> = Mutex::new(());
+static DNS_BUSY: OnceLock<Arc<AtomicBool>> = OnceLock::new();
+
+// OS DNS lookup cannot be cancelled safely. Return to the caller on timeout,
+// but keep the single resolver slot occupied until that lookup actually exits.
+// This bounds blocked DNS workers even if the user retries repeatedly.
+fn resolve_with_timeout<F>(busy: Arc<AtomicBool>, timeout: Duration, resolver: F) -> Result<Vec<SocketAddr>, String>
+where F: FnOnce() -> Result<Vec<SocketAddr>, String> + Send + 'static {
+    busy.compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .map_err(|_| "Resolver DNS sebelumnya masih berjalan; coba lagi nanti".to_string())?;
+    struct ResetBusy(Arc<AtomicBool>);
+    impl Drop for ResetBusy {
+        fn drop(&mut self) { self.0.store(false, Ordering::Release); }
+    }
+    let (send, receive) = mpsc::sync_channel(1);
+    let worker_busy = busy.clone();
+    if let Err(error) = std::thread::Builder::new().name("markrust-image-dns".into()).spawn(move || {
+        let guard = ResetBusy(worker_busy);
+        let result = resolver();
+        drop(guard);
+        let _ = send.send(result); // Receiver may already have timed out.
+    }) {
+        busy.store(false, Ordering::Release);
+        return Err(format!("Tidak bisa memulai resolver DNS: {error}"));
+    }
+    match receive.recv_timeout(timeout) {
+        Ok(result) => result,
+        Err(mpsc::RecvTimeoutError::Timeout) => Err("Resolusi DNS melebihi batas waktu".into()),
+        Err(mpsc::RecvTimeoutError::Disconnected) => Err("Resolver DNS berhenti sebelum selesai".into()),
+    }
+}
+fn resolve_host(host: String) -> Result<Vec<SocketAddr>, String> {
+    // IP literals do not need a resolver worker.
+    if let Ok(ip) = host.parse::<IpAddr>() {
+        return Ok(vec![SocketAddr::new(ip, 443)]);
+    }
+    resolve_with_timeout(
+        DNS_BUSY.get_or_init(|| Arc::new(AtomicBool::new(false))).clone(),
+        Duration::from_secs(5),
+        move || (host.as_str(), 443).to_socket_addrs()
+            .map(|addresses| addresses.collect()).map_err(|e| e.to_string()),
+    )
+}
 
 fn public_v4(ip: Ipv4Addr) -> bool {
     let [a,b,c,_] = ip.octets();
@@ -48,7 +90,7 @@ fn download(raw: &str) -> Result<String, String> {
     let host = url.host_str().unwrap();
     // Resolve once, reject non-public IPv4, and pin the exact addresses used
     // by the TLS client. IPv6-only hosts are deliberately unsupported for now.
-    let resolved = (host, 443).to_socket_addrs().map_err(|e| e.to_string())?;
+    let resolved = resolve_host(host.to_owned())?;
     let mut addresses = Vec::new();
     for address in resolved {
         if let IpAddr::V4(ip) = address.ip() {
@@ -97,4 +139,32 @@ mod tests {
         img.write_to(&mut input, image::ImageFormat::Png).unwrap();
         assert!(raster(input.get_ref()).unwrap().starts_with("data:image/png;base64,"));
     }
+    #[test]
+    fn dns_timeout_does_not_allow_unbounded_workers() {
+        let busy = Arc::new(AtomicBool::new(false));
+        let (release, blocked) = mpsc::channel();
+        let result = resolve_with_timeout(busy.clone(), Duration::from_millis(30), move || {
+            blocked.recv().unwrap();
+            Ok(vec![])
+        });
+        assert!(result.unwrap_err().contains("batas waktu"));
+        assert!(busy.load(Ordering::Acquire));
+        // A timed-out resolver is still running: no second worker may start.
+        assert!(resolve_with_timeout(busy, Duration::from_secs(1), || panic!("must not spawn"))
+            .unwrap_err().contains("masih berjalan"));
+        release.send(()).unwrap();
+    }
+    #[test]
+    fn dns_success_and_failure_release_the_slot() {
+        let busy = Arc::new(AtomicBool::new(false));
+        let expected: SocketAddr = "8.8.8.8:443".parse().unwrap();
+        let addresses = resolve_with_timeout(busy.clone(), Duration::from_secs(5), move || Ok(vec![expected])).unwrap();
+        assert_eq!(addresses, vec![expected]);
+        assert!(!busy.load(Ordering::Acquire));
+        assert!(resolve_with_timeout(busy.clone(), Duration::from_secs(5), || Err("DNS failed".into())).is_err());
+        assert!(!busy.load(Ordering::Acquire));
+        assert_eq!(resolve_host("127.0.0.1".into()).unwrap()[0].ip(), "127.0.0.1".parse::<IpAddr>().unwrap());
+        // Target validation remains in download(), after resolution.
+    }
+
 }
