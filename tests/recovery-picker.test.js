@@ -85,3 +85,18 @@ test('showModal failure resolves as cancellation and allows retry', async () => 
   doc.querySelector('button').click();
   assert.equal(await retry, 'session-2');
 });
+
+test('corrupt archive is visible but cannot be selected or deleted', async () => {
+  const { doc, dialog } = setup();
+  const picked = pickRecovery(doc, [
+    { id: 'session-corrupt', corrupt: true },
+    { id: 'session-valid', path: 'valid.md', savedAt: 1 }
+  ]);
+  const [broken, valid] = doc.querySelectorAll('button');
+  assert.equal(broken.disabled, true);
+  assert.match(broken.textContent, /tidak dapat dibaca/);
+  broken.click();
+  assert.equal(dialog.open, true);
+  valid.click();
+  assert.equal(await picked, 'session-valid');
+});

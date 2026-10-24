@@ -7,6 +7,12 @@ export function createDiskRecovery(tauri) {
     queue = result.catch(() => {});
     return result;
   }
+  function decode(raw) {
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (data.version !== 1 || typeof data.markdown !== 'string') throw new Error('Format recovery tidak valid');
+    return data;
+  }
   return {
     write(draft) {
       const contents = JSON.stringify({ ...draft, version: 1 });
@@ -15,10 +21,7 @@ export function createDiskRecovery(tauri) {
     read() {
       return enqueue(async () => {
         const raw = await tauri.core.invoke('read_recovery');
-        if (!raw) return null;
-        const data = JSON.parse(raw);
-        if (data.version !== 1 || typeof data.markdown !== 'string') throw new Error('Format recovery tidak valid');
-        return data;
+        return decode(raw);
       });
     },
     list() {
@@ -29,7 +32,7 @@ export function createDiskRecovery(tauri) {
         return rows;
       });
     },
-    select(id) { return enqueue(() => tauri.core.invoke('select_recovery', { id })); },
+    select(id) { return enqueue(async () => decode(await tauri.core.invoke('select_recovery', { id }))); },
     clear() { return enqueue(() => tauri.core.invoke('clear_recovery')); }
   };
 }

@@ -384,3 +384,38 @@ diuji. Tidak ada build/install/push/CI pada tahap ini.
 Berikutnya: tahap 3, audit recovery ditunda/rusak dan pemisahan recovery yang
 belum dipilih dari pekerjaan baru. Jangan menandai lifecycle ini selesai hanya
 karena dialog Nanti saja tidak langsung menghapus file.
+
+## Tahap pemantapan 3 — recovery ditunda/rusak (implementasi, native belum diverifikasi)
+
+Menggantikan lifecycle lama yang otomatis mengadopsi sesi stale:
+- Workspace native baru selalu memperoleh sesi kosong baru. read/list tidak
+  lagi mengikat cadangan pekerjaan baru ke direktori arsip yang belum dipilih.
+- select_recovery kini read-only import dan mengembalikan JSON snapshot; lock
+  arsip tetap diperiksa saat baca, tetapi tidak mengganti sesi aktif. Dua
+  instance dapat mengimpor salinan arsip secara terpisah setelah baca selesai,
+  tanpa menulis ke arsip asal. Ini disengaja, bukan exclusive session adoption.
+- Tidak memulihkan = tunda, bukan hapus. Nanti saja/konfirmasi No tidak
+  membersihkan sumber. Raw archive native tetap dipertahankan bahkan setelah
+  hasil impor disimpan sebagai berkas; penghapusan arsip eksplisit belum ada.
+- Recovery yang semua versinya tidak terbaca ditampilkan sebagai item disabled
+  dengan label berkas tetap disimpan. Gagal baca juga menampilkan feedback.
+
+Baseline **183/183 tes frontend lulus**, termasuk mock arsip terpisah dari
+workspace, edit/simpan setelah defer, read failure, read-only IPC dan item rusak.
+Tes Rust ditambahkan untuk fresh workspace/import tanpa mutasi sumber dan
+arsip rusak tidak dihapus, tetapi **BELUM DIJALANKAN/DIKOMPILASI** pada tahap ini.
+Tidak build/install/push/CI, sesuai arahan pengguna.
+
+Kontrak IPC select_recovery berubah dari void menjadi JSON snapshot: frontend
+dan backend harus berasal dari revisi yang sama ketika build diizinkan kelak.
+Jangan menguji frontend baru terhadap binary lama lalu menganggapnya kompatibel.
+
+Batas terbuka:
+- Arsip native dapat menumpuk dan ikut quota 256 MiB; belum ada UI hapus/ekspor
+  arsip dengan konfirmasi. Perubahan konservatif ini memilih mempertahankan
+  data daripada menghapusnya setelah penundaan/restore.
+- Browser fallback dan legacy localStorage masih satu key; isolasi arsip lama
+  vs pekerjaan baru pada fallback itu belum setara dengan recovery native.
+- Fallback versi rusak yang masih memiliki versi valid tetap memakai versi
+  valid; label rusak khusus sesi tanpa versi yang bisa dibaca.
+- Uji Rust, dua proses dan GUI nyata tetap diperlukan setelah build diizinkan.

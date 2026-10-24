@@ -822,22 +822,32 @@ function boot() {
     try {
       if (diskRecovery) {
         const rows = await diskRecovery.list();
-        if (rows.length > 1) {
-          const id = await pickRecovery(document, rows);
+        if (rows.length) {
+          const id = rows.length > 1 ? await pickRecovery(document, rows) : rows[0].id;
           if (!id || generation !== documentGeneration || revision !== editRevision) return false;
-          await diskRecovery.select(id);
+          if (rows.find((row) => row.id === id)?.corrupt) {
+            fileFeedback('Cadangan tidak dapat dibaca. Berkas recovery tetap disimpan.', 'error');
+            return false;
+          }
+          draft = await diskRecovery.select(id); // Read-only copy, not session adoption.
+        } else {
+          draft = await diskRecovery.read();
         }
       }
-      draft = diskRecovery ? await diskRecovery.read() : null;
       if (!draft) draft = readDraft(draftStorage); // Migration from older versions.
     } catch (err) {
       draftError.hidden = false;
+      draftError.title = String(err?.message || err);
+      fileFeedback('Pemulihan gagal. Cadangan lama dan tulisan aktif tidak dihapus.', 'error');
       return false; // Never clear unreadable native backups.
     }
     if (!draft || generation !== documentGeneration || revision !== editRevision) return false;
     const ok = await confirmRestore(tauri, restoreMessage(draft.savedAt));
     if (generation !== documentGeneration || revision !== editRevision) return false;
-    if (!ok) { discardDraft(); return false; }
+    if (!ok) {
+      fileFeedback('Pemulihan ditunda. Cadangan lama tetap disimpan.');
+      return false;
+    }
     currentPath = draft.path || null;
     applyDocument(draft.markdown);
     markClean();          // reset dulu supaya markDirty() tidak di-skip

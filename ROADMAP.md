@@ -111,3 +111,13 @@ sama diterapkan sebagai satu langkah konversi undoable; replacement document
 memutus history lama. Fokus/seleksi per mode dan aria-pressed diperbaiki.
 179 tes frontend lulus, tanpa build/push. Selanjutnya lifecycle recovery yang
 ditunda/rusak; mapping offset lintas sintaks dan uji Hyprland bukan klaim tahap ini.
+
+### Tahap pemantapan 3 — isolasi recovery tertunda
+
+Implementasi beralih ke sesi kerja fresh dan read-only import arsip native,
+sehingga pekerjaan baru tidak memakai arsip yang ditunda. No/Nanti saja tidak
+menghapus cadangan. Item rusak ditampilkan disabled. 183 tes frontend lulus;
+perubahan Rust dan tesnya **belum dikompilasi/dijalankan**, karena jangan build.
+Arsip dipertahankan sesudah restore/save; UI cleanup eksplisit dan browser
+fallback archive isolation masih pekerjaan tersisa. Tahap ini bukan klaim
+validasi native selesai.

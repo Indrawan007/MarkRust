@@ -43,3 +43,18 @@ test('listing and selecting recoveries uses serialized native commands', async (
   assert.deepEqual(calls.map(([cmd]) => cmd), ['list_recoveries', 'select_recovery']);
   assert.deepEqual(calls[1][1], { id: 'session-1' });
 });
+
+test('select returns an imported snapshot without clearing the source archive', async () => {
+  const source = JSON.stringify({ version: 1, markdown: 'archive', path: '/old.md' });
+  const commands = [];
+  const disk = createDiskRecovery({ core: { invoke: async (command) => {
+    commands.push(command);
+    if (command === 'select_recovery') return source;
+    return null;
+  } } });
+  assert.equal((await disk.select('session-old')).markdown, 'archive');
+  await disk.write({ markdown: 'new work' });
+  await disk.clear();
+  assert.deepEqual(commands, ['select_recovery', 'write_recovery', 'clear_recovery']);
+  assert.equal(JSON.parse(source).markdown, 'archive');
+});

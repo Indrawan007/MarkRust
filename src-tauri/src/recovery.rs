@@ -22,6 +22,7 @@ fn lock_session(dir: &Path) -> Result<Option<Session>, String> {
         Err(e) => Err(e.to_string()),
     }
 }
+#[cfg(test)]
 fn acquire(root: &Path) -> Result<Session, String> {
     fs::create_dir_all(root).map_err(|e| e.to_string())?;
     let mut dirs = fs::read_dir(root).map_err(|e| e.to_string())?
@@ -35,6 +36,10 @@ fn acquire(root: &Path) -> Result<Session, String> {
             if !snapshots(dir)?.is_empty() { return Ok(session); }
         }
     }
+    fresh_session(root)
+}
+fn fresh_session(root: &Path) -> Result<Session, String> {
+    fs::create_dir_all(root).map_err(|e| e.to_string())?;
     loop {
         let stamp = SystemTime::now().duration_since(UNIX_EPOCH).map_err(|e| e.to_string())?.as_nanos();
         let dir = root.join(format!("session-{stamp:039}-{}", std::process::id()));
@@ -49,16 +54,8 @@ fn with_session<T>(app: &tauri::AppHandle, task: impl FnOnce(&Path) -> Result<T,
     let mut state = SESSION.lock().map_err(|e| e.to_string())?;
     if state.is_none() {
         let base = app.path().app_data_dir().map_err(|e| e.to_string())?;
-        let mut session = acquire(&base.join("recovery-v2"))?;
-        // Adopt old-format recovery in place, under the same OS lock. Never
-        // copy it into several sessions or delete an unclaimed legacy draft.
-        let legacy = base.join("recovery-v1");
-        if snapshots(&session.dir)?.is_empty() && legacy.is_dir() {
-            if let Some(old) = lock_session(&legacy)? {
-                if !snapshots(&legacy)?.is_empty() { session = old; }
-            }
-        }
-        *state = Some(session);
+        // A new workspace must never inherit an abandoned draft implicitly.
+        *state = Some(fresh_session(&base.join("recovery-v2"))?);
     }
     task(&state.as_ref().unwrap().dir)
 }
@@ -176,7 +173,7 @@ fn candidate_path(base: &Path, id: &str) -> Result<PathBuf, String> {
 }
 #[tauri::command]
 pub fn list_recoveries(app: tauri::AppHandle) -> Result<String, String> {
-    // Initialize/adopt once, then list our recovery and unlocked abandoned ones.
+    // Initialize a fresh workspace; list it and unlocked abandoned recoveries.
     with_session(&app, |_| Ok(()))?;
     let state = SESSION.lock().map_err(|e| e.to_string())?;
     let own = &state.as_ref().unwrap().dir;
@@ -194,29 +191,37 @@ pub fn list_recoveries(app: tauri::AppHandle) -> Result<String, String> {
             held = lock_session(&dir)?;
             if held.is_none() { continue; }
         }
-        if let Ok(Some(raw)) = read(&dir) {
-            let data: serde_json::Value = serde_json::from_str(&raw).map_err(|e| e.to_string())?;
-            let id = if dir == base.join("recovery-v1") { "legacy".to_string() }
-                else { dir.file_name().unwrap().to_string_lossy().into_owned() };
-            rows.push(serde_json::json!({"id":id,"path":data["path"],"savedAt":data["savedAt"]}));
+        let id = if dir == base.join("recovery-v1") { "legacy".to_string() }
+            else { dir.file_name().unwrap().to_string_lossy().into_owned() };
+        match read(&dir) {
+            Ok(Some(raw)) => {
+                let data: serde_json::Value = serde_json::from_str(&raw).map_err(|e| e.to_string())?;
+                rows.push(serde_json::json!({"id":id,"path":data["path"],"savedAt":data["savedAt"]}));
+            },
+            Ok(None) => {},
+            Err(_) => rows.push(serde_json::json!({"id":id,"corrupt":true,"path":null,"savedAt":null})),
         }
     }
     Ok(serde_json::Value::Array(rows).to_string())
 }
 #[tauri::command]
-pub fn select_recovery(app: tauri::AppHandle, id: String) -> Result<(), String> {
-    let mut state = SESSION.lock().map_err(|e| e.to_string())?;
+pub fn select_recovery(app: tauri::AppHandle, id: String) -> Result<String, String> {
+    with_session(&app, |_| Ok(()))?;
+    let state = SESSION.lock().map_err(|e| e.to_string())?;
     let base = app.path().app_data_dir().map_err(|e| e.to_string())?;
     let path = candidate_path(&base, &id)?;
-    if state.as_ref().is_some_and(|s| s.dir == path) { return Ok(()); }
-    // Reject symlink directories and check ownership again, not just at listing.
-    if !fs::symlink_metadata(&path).map_err(|e| e.to_string())?.is_dir() {
+    read_candidate(&path, &state.as_ref().unwrap().dir)
+}
+// Read-only import: old snapshots are never attached to the new editor session.
+// Retain originals even after successful save; explicit archive cleanup is future work.
+fn read_candidate(path: &Path, own: &Path) -> Result<String, String> {
+    if !fs::symlink_metadata(path).map_err(|e| e.to_string())?.is_dir() {
         return Err("Recovery tidak valid".into());
     }
-    let selected = lock_session(&path)?.ok_or("Recovery sedang dipakai instance lain")?;
-    if read(&path)?.is_none() { return Err("Recovery sudah tidak tersedia".into()); }
-    *state = Some(selected); // Release previous lock without deleting its files.
-    Ok(())
+    let _guard = if path == own { None } else {
+        Some(lock_session(path)?.ok_or("Recovery sedang dipakai instance lain")?)
+    };
+    read(path)?.ok_or("Recovery sudah tidak tersedia".into())
 }
 
 #[cfg(test)]
@@ -326,6 +331,29 @@ mod tests {
         assert!(candidate_path(base, "session-foo/bar").is_err());
         assert_eq!(candidate_path(base, "session-123-45").unwrap(), base.join("recovery-v2/session-123-45"));
         assert_eq!(candidate_path(base, "legacy").unwrap(), base.join("recovery-v1"));
+    }
+
+    #[test]
+    fn fresh_workspace_and_import_never_modify_deferred_or_corrupt_recovery() {
+        let root = std::env::temp_dir().join(format!("mr-defer-{}", SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos()));
+        let old = fresh_session(&root).unwrap();
+        let original = r#"{"version":1,"markdown":"old draft"}"#;
+        write(&old.dir, original).unwrap();
+        let old_dir = old.dir.clone();
+        drop(old);
+        let active = fresh_session(&root).unwrap();
+        assert_ne!(active.dir, old_dir);
+        assert!(read(&active.dir).unwrap().is_none());
+        assert_eq!(read_candidate(&old_dir, &active.dir).unwrap(), original);
+        write(&active.dir, r#"{"version":1,"markdown":"new work"}"#).unwrap();
+        for path in snapshots(&active.dir).unwrap() { fs::remove_file(path).unwrap(); }
+        assert_eq!(read(&old_dir).unwrap().unwrap(), original);
+        let corrupt = snapshots(&old_dir).unwrap().pop().unwrap();
+        fs::write(&corrupt, "broken").unwrap();
+        assert!(read_candidate(&old_dir, &active.dir).is_err());
+        assert_eq!(fs::read_to_string(corrupt).unwrap(), "broken");
+        drop(active);
+        fs::remove_dir_all(root).unwrap();
     }
 
 }

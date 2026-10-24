@@ -34,6 +34,8 @@ let pendingWrite = null;
 let pendingRead = null;
 let pendingAsk = null;
 let recoveryContents = null;
+let archivedRecoveries = [];
+let failCandidateRead = false;
 let failRecovery = false;
 const DISK_DOC = '# Dokumen Dari Disk\n\nIsi dari berkas.\n';
 window.__TAURI__ = {
@@ -47,6 +49,11 @@ window.__TAURI__ = {
         // Mirror for legacy assertions, not used by production disk writes.
         window.localStorage.setItem('markrust.draft.v1', args.contents);
         return;
+      }
+      if (cmd === 'list_recoveries') return JSON.stringify(archivedRecoveries.map(({ raw, ...row }) => row));
+      if (cmd === 'select_recovery') {
+        if (failCandidateRead) throw new Error('recovery unavailable');
+        return archivedRecoveries.find((row) => row.id === args.id)?.raw || null;
       }
       if (cmd === 'read_recovery') return recoveryContents;
       if (cmd === 'clear_recovery') { recoveryContents = null; return; }
@@ -324,7 +331,7 @@ test('draf dari sesi sebelumnya ditawarkan dan dipulihkan', async () => {
   assert.equal(api.isDirty(), true, 'hasil pemulihan masih harus dianggap belum tersimpan');
 });
 
-test('menolak pemulihan draf akan membuang draf tersebut', async () => {
+test('menolak pemulihan draf menundanya tanpa menghapus cadangan', async () => {
   await api.newDocument();
   await new Promise((r) => setTimeout(r, 0));
   window.localStorage.setItem(api.draftKey, JSON.stringify({
@@ -335,7 +342,7 @@ test('menolak pemulihan draf akan membuang draf tersebut', async () => {
   const ok = await api.restoreDraftIfAny();
 
   assert.equal(ok, false);
-  assert.equal(window.localStorage.getItem(api.draftKey), null);
+  assert.match(window.localStorage.getItem(api.draftKey), /Draf lama/);
   assert.ok(!api.getMarkdown().includes('Draf lama'));
 });
 
@@ -832,4 +839,40 @@ test('document replacement in raw mode cannot undo back into the previous docume
   assert.equal(api.quill.getText(), 'Dokumen pengganti\n');
   assert.equal(api.setMode('invalid'), false);
   assert.equal(window.document.getElementById('sb-mode').textContent, 'WYSIWYG');
+});
+
+
+test('deferred native recovery survives editing and saving a separate workspace', async () => {
+  nextAskResult = true;
+  api.setMode('wysiwyg');
+  await api.newDocument();
+  const original = JSON.stringify({ version: 1, markdown: '# Arsip lama\n', path: '/old.md', savedAt: 1 });
+  archivedRecoveries = [{ id: 'session-old', raw: original, path: '/old.md', savedAt: 1 }];
+  try {
+    nextAskResult = false;
+    assert.equal(await api.restoreDraftIfAny(), false);
+    assert.equal(archivedRecoveries[0].raw, original);
+    api.quill.insertText(0, 'Pekerjaan baru', 'user');
+    await api.flushDraft();
+    assert.match(recoveryContents, /Pekerjaan baru/);
+    assert.equal(await api.saveDocument(false), true);
+    assert.equal(archivedRecoveries[0].raw, original);
+    nextAskResult = true;
+    assert.equal(await api.restoreDraftIfAny(), true);
+    assert.match(api.getMarkdown(), /Arsip lama/);
+    assert.equal(archivedRecoveries[0].raw, original);
+  } finally { archivedRecoveries = []; nextAskResult = true; }
+});
+
+test('unreadable candidate is reported without clearing or changing current content', async () => {
+  await api.newDocument();
+  const before = api.getMarkdown();
+  archivedRecoveries = [{ id: 'session-old', raw: 'broken', path: null }];
+  failCandidateRead = true;
+  try {
+    assert.equal(await api.restoreDraftIfAny(), false);
+    assert.equal(api.getMarkdown(), before);
+    assert.equal(archivedRecoveries[0].raw, 'broken');
+    assert.match(window.document.getElementById('file-feedback').textContent, /Pemulihan gagal/);
+  } finally { archivedRecoveries = []; failCandidateRead = false; }
 });

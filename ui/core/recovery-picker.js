@@ -31,7 +31,10 @@ export function pickRecovery(document, rows) {
   for (const row of rows) {
     const button = document.createElement('button');
     button.type = 'button';
-    button.textContent = (row.path || 'Tanpa Judul') + ' — ' + formatSavedAt(row.savedAt);
+    button.textContent = row.corrupt
+      ? 'Cadangan tidak dapat dibaca — berkas tetap disimpan (' + row.id + ')'
+      : (row.path || 'Tanpa Judul') + ' — ' + formatSavedAt(row.savedAt);
+    button.disabled = Boolean(row.corrupt);
     listen(button, 'click', () => finish(row.id));
     list.appendChild(button);
   }
