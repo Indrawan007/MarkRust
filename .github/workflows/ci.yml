@@ -67,9 +67,11 @@ jobs:
 
       - name: Dependensi sistem (Linux)
         if: runner.os == 'Linux'
+        timeout-minutes: 10
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          sudo apt-get update -o Acquire::Retries=3
+          sudo env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a \
+            apt-get install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
             webkit2gtk-driver xvfb xauth
 
