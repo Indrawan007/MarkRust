@@ -92,6 +92,13 @@ jobs:
           MARKRUST_NATIVE_ARTIFACTS: native-artifacts
           WEBKIT_DISABLE_COMPOSITING_MODE: '1'
 
+      - name: Validasi dua proses Tauri native (Linux/Xvfb)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a -s "-screen 0 1200x800x24" npm run test:native:multi
+        env:
+          MARKRUST_NATIVE_ARTIFACTS: native-artifacts
+          WEBKIT_DISABLE_COMPOSITING_MODE: '1'
+
       - name: Simpan bukti WebView native (Linux)
         if: always() && runner.os == 'Linux'
         uses: actions/upload-artifact@v4

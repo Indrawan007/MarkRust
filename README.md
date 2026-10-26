@@ -123,6 +123,7 @@ sudo apt-get install webkit2gtk-driver xvfb xauth xdotool scrot
 cargo build --manifest-path src-tauri/Cargo.toml
 cargo install tauri-driver --version 2.1.0 --locked
 MARKRUST_NATIVE_ARTIFACTS=/tmp/markrust-native xvfb-run -a npm run test:native
+MARKRUST_NATIVE_ARTIFACTS=/tmp/markrust-native xvfb-run -a npm run test:native:multi
 ```
 
 Cakupannya adalah boot WebKitGTK/API Tauri/close handler, raw block + hard break
@@ -134,10 +135,15 @@ penulisan, recovery, serializer, dan state UI tetap melalui implementasi
 Tauri/Rust nyata. Screenshot WebView, screenshot dialog X11, dan log driver
 disimpan di direktori artefak.
 
+`test:native:multi` menjalankan R04 dengan dua proses dan driver terpisah:
+membuka dokumen A/B, menyimpan A tanpa menghapus snapshot B, mematikan B,
+memulai proses pengganti, lalu memulihkan B melalui dialog GTK sementara A
+tetap berjalan. Isi editor, PID, file host, dan recovery kedua sesi diperiksa.
+
 Pemeriksaan ini berjalan pada job Rust/Linux CI (`ubuntu-24.04`) sebagai bagian
-M2. Interaksi restore dilakukan otomatis, bukan pengujian manual lintas OS. Dua
-proses desktop bersamaan, installer, dan runtime Windows/macOS juga belum
-dicakup; kasus tersebut tetap mengikuti `DESKTOP-TEST-CHECKLIST.md`.
+M2. Interaksi restore dan dua proses dilakukan otomatis, bukan pengujian manual
+lintas OS. Checklist manual dua proses, installer, dan runtime Windows/macOS
+tetap mengikuti `DESKTOP-TEST-CHECKLIST.md`.
 
 ## Keputusan UI
 
