@@ -51,6 +51,13 @@ Pekerjaan:
 **Kriteria keluar:** alur kritis lulus pada ketiga OS dengan bukti uji native;
 tidak ada blocker kehilangan data yang diketahui. Build CI saja tidak cukup.
 
+**Kemajuan 27 Oktober 2026:** commit `809f22f`, CI `40414344817` menambahkan dan
+meluluskan WebDriver pada binary Tauri Linux/WebKitGTK untuk boot, fidelity dan
+shortcut, serta buka/edit/recovery/simpan melalui IPC Rust. Dialog Buka hanya
+distub pada pemilihan path. Ini adalah bukti runtime native otomatis pertama,
+bukan penutupan M2: checklist manual tiga OS, dialog nyata, force-kill, dua
+proses, network inspector, dan installer masih terbuka.
+
 ## M3 — Privasi gambar ditegakkan lintas lapisan (prioritas tinggi)
 
 **Tujuan:** hilangkan izin gambar jaringan langsung dari CSP tanpa membuka

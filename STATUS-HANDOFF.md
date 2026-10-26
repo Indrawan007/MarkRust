@@ -1,5 +1,23 @@
 # Laporan status & handoff MarkRust
 
+## Update 27 Oktober 2026 — M2: WebView native Linux otomatis
+
+- Commit `809f22f`, CI `40414344817`: langkah **Validasi WebView Tauri native
+  (Linux/Xvfb)** lulus menggunakan binary Tauri, `tauri-driver` 2.1.0, dan
+  `WebKitWebDriver`; bukan Chromium/jsdom.
+- Tiga kelompok lulus: boot WebKitGTK + API Tauri + close handler; raw block /
+  hard break + `Ctrl+Shift+M`; serta buka → edit → recovery disk → simpan pada
+  path Unicode dan spasi melalui IPC Rust.
+- Hanya pemilihan path dialog Buka yang distub. Dialog manual, force-kill, dua
+  proses desktop, installer, dan native Windows/macOS belum diuji. M2 tetap
+  terbuka dan seluruh status checklist manual tetap **BELUM DIUJI**.
+- Artefak CI `native-webview-linux` berisi screenshot dan log driver (retensi 7
+  hari). Screenshot tidak diinspeksi di sandbox karena unduhan artefak memakai
+  host penyimpanan eksternal yang tidak dapat diakses dari environment ini.
+- Run yang sama juga lulus untuk 172 tes Node, 4 kelompok Chromium, serta
+  build/test Rust Linux, Windows, dan macOS. Bundel rilis tetap dilewati pada
+  push branch biasa.
+
 ## Update 27 Oktober 2026 — fidelity Markdown tahap 1B
 
 - Raw HTML/komentar, inline HTML yang atributnya belum didukung, serta
@@ -88,6 +106,8 @@ memiliki tes otomatis tersendiri; masukkan ke uji F07.
 - Lokal pada update 27 Oktober 2026 (tahap 1B): `npm test` → **172 tests, 172 pass, 0 fail**.
 - Chromium 153 lokal: `npm run test:browser` → **4/4 kelompok lulus**, tanpa
   console/page error; cakupan dan batasnya dijelaskan pada update di atas.
+- CI `40414344817`, commit `809f22f`: **3/3 kelompok WebView Tauri native
+  Linux/WebKitGTK lulus**; cakupan dan batasnya dijelaskan pada update M2.
 - Tidak ada toolchain Rust lokal; Rust diverifikasi lewat GitHub Actions.
 - CI M1c `40073225635`, commit `0ecfd7a`: Node + build/test Rust Linux,
   Windows, macOS lulus. Bundel rilis tidak berjalan pada push biasa.
@@ -101,8 +121,10 @@ memiliki tes otomatis tersendiri; masukkan ke uji F07.
 ### 1. Gerbang M1/M2: validasi lifecycle native
 
 Jalankan checklist tiga OS. Audit khusus registrasi close listener, permission,
-close berulang, Cmd+Q, error IPC, dan dialog yang dibatalkan. Tidak ada bukti
-runtime native dalam sesi sandbox ini. Jangan menandai M1/M2 selesai dulu.
+close berulang, Cmd+Q, error IPC, dan dialog yang dibatalkan. Bukti otomatis
+Linux/WebKitGTK kini ada pada CI `40414344817`, tetapi belum mencakup kasus
+manual tersebut dan belum ada runtime native Windows/macOS. Jangan menandai
+M1/M2 selesai dulu.
 
 ### 2. Lifecycle recovery yang masih terbatas
 
