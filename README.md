@@ -119,7 +119,7 @@ Harness `test:native` memakai `tauri-driver` + `WebKitWebDriver` untuk membuka
 Tauri tersedia:
 
 ```bash
-sudo apt-get install webkit2gtk-driver xvfb xauth
+sudo apt-get install webkit2gtk-driver xvfb xauth xdotool scrot
 cargo build --manifest-path src-tauri/Cargo.toml
 cargo install tauri-driver --version 2.1.0 --locked
 MARKRUST_NATIVE_ARTIFACTS=/tmp/markrust-native xvfb-run -a npm run test:native
@@ -127,17 +127,17 @@ MARKRUST_NATIVE_ARTIFACTS=/tmp/markrust-native xvfb-run -a npm run test:native
 
 Cakupannya adalah boot WebKitGTK/API Tauri/close handler, raw block + hard break
 + `Ctrl+Shift+M`, buka → edit → recovery disk → simpan pada path Unicode dan
-spasi, serta `SIGKILL` → restart → snapshot terbaca oleh proses baru tanpa
-mengubah file asli. Hanya pemilihan path pada dialog Buka yang distub;
-pembacaan, penulisan, recovery, serializer, dan state UI tetap melalui
-implementasi Tauri/Rust nyata. Screenshot dan log driver disimpan di direktori
-artefak.
+spasi, serta `SIGKILL` → restart → dialog restore GTK → isi/path/dirty pulih →
+simpan hasil pemulihan. Dialog restore ditemukan dan dikonfirmasi melalui
+`xdotool`; hanya pemilihan path pada dialog Buka yang distub. Pembacaan,
+penulisan, recovery, serializer, dan state UI tetap melalui implementasi
+Tauri/Rust nyata. Screenshot WebView, screenshot dialog X11, dan log driver
+disimpan di direktori artefak.
 
 Pemeriksaan ini berjalan pada job Rust/Linux CI (`ubuntu-24.04`) sebagai bagian
-M2. Dialog restore setelah crash tidak dijawab, sehingga hasil force-kill/restart bukan
-bukti restore GUI penuh. Dialog manual, dua proses desktop bersamaan,
-installer, dan runtime Windows/macOS juga belum dicakup; kasus tersebut tetap
-mengikuti `DESKTOP-TEST-CHECKLIST.md`.
+M2. Interaksi restore dilakukan otomatis, bukan pengujian manual lintas OS. Dua
+proses desktop bersamaan, installer, dan runtime Windows/macOS juga belum
+dicakup; kasus tersebut tetap mengikuti `DESKTOP-TEST-CHECKLIST.md`.
 
 ## Keputusan UI
 

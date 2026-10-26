@@ -2,7 +2,7 @@
 // Linux/WebKitGTK saja; bukan pengganti matriks manual Windows/macOS/Linux.
 // Tidak ada dependensi npm: Node 22+ menyediakan fetch yang dipakai di sini.
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -224,6 +224,45 @@ async function forceKillApp() {
   return pid;
 }
 
+function x11(command, args) {
+  return execFileSync(command, args, {
+    encoding: 'utf8',
+    env: process.env,
+    maxBuffer: 1024 * 1024,
+    stdio: ['ignore', 'pipe', 'pipe']
+  }).trim();
+}
+
+function x11WindowReport() {
+  const ids = x11('xdotool', ['search', '--onlyvisible', '--name', '.*'])
+    .split(/\s+/).filter(Boolean).slice(0, 200);
+  const rows = [];
+  for (const id of ids) {
+    try { rows.push(`${id}\t${x11('xdotool', ['getwindowname', id])}`); }
+    catch { /* jendela sudah hilang */ }
+  }
+  return rows.join('\n') + '\n';
+}
+
+function captureX11(name) {
+  x11('scrot', ['--overwrite', path.join(artifactDir, name)]);
+}
+
+async function confirmRestoreDialog() {
+  const dialogId = await waitFor('dialog restore GTK terlihat', async () => {
+    const ids = x11('xdotool', ['search', '--onlyvisible', '--name', 'Pulihkan draf'])
+      .split(/\s+/).filter(Boolean);
+    assert.equal(ids.length, 1, `Jendela dialog restore harus tunggal: ${ids.join(', ')}`);
+    return ids[0];
+  }, 15000);
+  await fs.writeFile(path.join(artifactDir, 'restore-x11-windows.txt'), x11WindowReport(), 'utf8');
+  captureX11('04b-native-recovery-dialog.png');
+  x11('xdotool', ['windowfocus', '--sync', dialogId]);
+  // GTK stock button Yes memiliki mnemonic Alt+Y pada locale CI (C.UTF-8).
+  x11('xdotool', ['key', '--clearmodifiers', 'alt+y']);
+  return dialogId;
+}
+
 try {
   assert.equal(process.platform, 'linux', 'Harness native ini saat ini hanya mendukung Linux/WebKitGTK');
   const appStat = await fs.stat(appPath).catch(() => null);
@@ -346,7 +385,7 @@ try {
     await screenshot('03-native-saved.png');
   });
 
-  await step('force-kill/restart mempertahankan snapshot untuk instance native baru', async () => {
+  await step('force-kill/restart, dialog restore GTK, dan simpan pemulihan', async () => {
     const marker = 'Draf force-kill Ω.';
     const crashPath = await execute('return window.MarkRust.getPath();');
     const savedOnDisk = await fs.readFile(crashPath, 'utf8');
@@ -387,8 +426,37 @@ try {
     // Tidak ada autosave: edit yang hanya ada di recovery tidak masuk file asli.
     assert.equal(await fs.readFile(crashPath, 'utf8'), savedOnDisk);
     await screenshot('04-native-recovery-restart.png');
-    // Dialog restore belum dikonfirmasi; akhiri proses uji tanpa memilih jawaban.
-    await forceKillApp();
+    await confirmRestoreDialog();
+    const restored = await waitFor('draf dipulihkan ke editor lewat dialog Yes', async () => {
+      const state = await execute(`return {
+        path: window.MarkRust.getPath(),
+        dirty: window.MarkRust.isDirty(),
+        markdown: window.MarkRust.getMarkdown(),
+        title: document.title
+      };`);
+      return state.path === crashPath && state.dirty && state.markdown.includes(marker) ? state : false;
+    }, 10000);
+    assert.equal(restored.markdown, beforeDraft.markdown);
+    assert.match(restored.title, /●/);
+    // Restore belum menyimpan otomatis; hanya aksi simpan berikut yang menulis.
+    assert.equal(await fs.readFile(crashPath, 'utf8'), savedOnDisk);
+    await screenshot('05-native-restored.png');
+
+    const recoveredSave = await executeAsync(`
+      const done = arguments[arguments.length - 1];
+      window.MarkRust.saveDocument(false).then(
+        result => done({ result, dirty: window.MarkRust.isDirty(), path: window.MarkRust.getPath() }),
+        error => done({ error: String(error) })
+      );
+    `);
+    if (recoveredSave?.error) throw new Error(recoveredSave.error);
+    assert.equal(recoveredSave.result, true, JSON.stringify(recoveredSave));
+    assert.equal(recoveredSave.dirty, false, JSON.stringify(recoveredSave));
+    assert.equal(recoveredSave.path, crashPath, JSON.stringify(recoveredSave));
+    assert.equal(await fs.readFile(crashPath, 'utf8'), beforeDraft.markdown);
+    await waitFor('recovery dibersihkan setelah hasil restore disimpan', async () => (await invoke('read_recovery')) === null, 5000);
+    await screenshot('06-native-recovery-saved.png');
+    skipSessionCleanup = false;
   });
 } catch (error) {
   failure = error;
@@ -396,6 +464,12 @@ try {
   workflowError(error.message);
   if (sessionId) {
     try { await screenshot('failure.png'); } catch { /* abaikan kegagalan bukti tambahan */ }
+  }
+  if (process.env.DISPLAY) {
+    try {
+      await fs.writeFile(path.join(artifactDir, 'failure-x11-windows.txt'), x11WindowReport(), 'utf8');
+      captureX11('failure-x11.png');
+    } catch { /* jendela/display mungkin sudah tidak tersedia */ }
   }
 } finally {
   if (sessionId && !skipSessionCleanup) {

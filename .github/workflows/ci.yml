@@ -73,7 +73,7 @@ jobs:
           sudo env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a \
             apt-get install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
-            webkit2gtk-driver xvfb xauth
+            webkit2gtk-driver xvfb xauth xdotool scrot
 
       - name: Cargo build
         run: cargo build --manifest-path src-tauri/Cargo.toml
