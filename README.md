@@ -51,7 +51,10 @@ ui/
 tests/
   harness.js        jsdom + Quill/marked hasil vendoring (bukan mock)
   *.test.js         unit + round-trip sungguhan + smoke test boot aplikasi
-.github/workflows/  CI: tes Node + Chromium + build Rust lintas OS
+scripts/
+  validate-browser.mjs  validasi Chromium sungguhan (tooling opsional)
+  validate-native.mjs   WebDriver untuk binary Tauri Linux/WebKitGTK
+.github/workflows/  CI: tes Node + Chromium + Rust + WebView native Linux
 src-tauri/
   src/main.rs       shell Tauri + perintah berkas + menu native
   tauri.conf.json   konfigurasi aplikasi
@@ -108,6 +111,29 @@ executable-nya.
 CI menjalankan pemeriksaan ini pada Chromium/Linux. Ini **bukan** pengganti
 pengujian webview Tauri atau GUI native Windows/macOS/Linux di
 `DESKTOP-TEST-CHECKLIST.md`.
+
+### Validasi WebView Tauri native Linux
+
+Harness `test:native` memakai `tauri-driver` + `WebKitWebDriver` untuk membuka
+**binary Tauri sungguhan**, bukan Chromium atau jsdom. Setelah dependensi Linux
+Tauri tersedia:
+
+```bash
+sudo apt-get install webkit2gtk-driver xvfb xauth
+cargo build --manifest-path src-tauri/Cargo.toml
+cargo install tauri-driver --version 2.1.0 --locked
+MARKRUST_NATIVE_ARTIFACTS=/tmp/markrust-native xvfb-run -a npm run test:native
+```
+
+Cakupannya adalah boot WebKitGTK/API Tauri/close handler, raw block + hard break
++ `Ctrl+Shift+M`, serta buka → edit → recovery disk → simpan pada path Unicode
+dan spasi. Hanya pemilihan path pada dialog Buka yang distub; pembacaan,
+penulisan, recovery, serializer, dan state UI tetap melalui implementasi
+Tauri/Rust nyata. Screenshot dan log driver disimpan di direktori artefak.
+
+Pemeriksaan ini berjalan pada job Rust/Linux CI sebagai bagian M2. Ini bukan
+bukti dialog manual, force-kill, dua proses desktop, installer, atau runtime
+Windows/macOS; kasus tersebut tetap mengikuti `DESKTOP-TEST-CHECKLIST.md`.
 
 ## Keputusan UI
 

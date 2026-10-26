@@ -70,13 +70,34 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
-            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+            libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
+            webkit2gtk-driver xvfb xauth
 
       - name: Cargo build
         run: cargo build --manifest-path src-tauri/Cargo.toml
 
       - name: Tes recovery Rust
         run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      - name: Pasang tauri-driver 2.1.0 (Linux)
+        if: runner.os == 'Linux'
+        run: cargo install tauri-driver --version 2.1.0 --locked
+
+      - name: Validasi WebView Tauri native (Linux/Xvfb)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a -s "-screen 0 1200x800x24" npm run test:native
+        env:
+          MARKRUST_NATIVE_ARTIFACTS: native-artifacts
+          WEBKIT_DISABLE_COMPOSITING_MODE: '1'
+
+      - name: Simpan bukti WebView native (Linux)
+        if: always() && runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: native-webview-linux
+          path: native-artifacts/
+          if-no-files-found: warn
+          retention-days: 7
 
       # Toolchain Rust tidak tersedia di semua mesin kontributor. Artifak ini
       # berisi Cargo.lock yang sudah diselesaikan Cargo (termasuk plugin baru),
