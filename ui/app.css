@@ -560,6 +560,45 @@
   /* Warna token dari tema highlight.js (night-owl) */
   .ql-editor .ql-token { background: transparent !important; }
 
+  /* YAML dipertahankan sebagai satu embed read-only. Mode Markdown tetap
+     menyediakan editing penuh tanpa merisikokan struktur isi dokumen. */
+  .ql-editor .mr-frontmatter,
+  .ql-editor .mr-raw-block {
+    position: relative;
+    display: block;
+    margin: 0 0 16px !important;
+    padding: 34px 16px 14px !important;
+    border: 1px solid var(--border) !important;
+    border-radius: var(--radius) !important;
+    background: var(--code-bg) !important;
+    color: var(--text-dim) !important;
+    font-family: var(--font-mono) !important;
+    font-size: 12px !important;
+    line-height: 1.6 !important;
+    white-space: pre-wrap !important;
+    overflow-wrap: anywhere;
+  }
+  .ql-editor .mr-frontmatter::before,
+  .ql-editor .mr-raw-block::before {
+    position: absolute;
+    top: 10px;
+    left: 16px;
+    color: var(--text-muted);
+    font-family: var(--font-sans);
+    font-size: 10px;
+    line-height: 1;
+  }
+  .ql-editor .mr-frontmatter::before {
+    content: 'YAML front matter · edit di mode Markdown';
+  }
+  .ql-editor .mr-raw-block::before {
+    content: 'Struktur raw · edit di mode Markdown';
+  }
+  .ql-editor mr-hard-break {
+    display: block;
+    height: 0;
+  }
+
   .ql-editor ul > li::before,
   .ql-editor ol > li::before {
     color: var(--text-muted) !important;

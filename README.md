@@ -42,7 +42,8 @@ ui/
   core/
     serialize.js    Delta Quill -> Markdown (murni, tanpa DOM/Quill instance)
     markdown.js     Markdown -> HTML untuk Quill + statistik dokumen
-    quill-setup.js  registrasi blot <hr> & matcher clipboard (dipakai app + tes)
+    quill-setup.js  registrasi blot & matcher clipboard (dipakai app + tes)
+    raw-markdown.js  proteksi struktur raw yang belum aman untuk Quill
   files.js        I/O dokumen: dialog Tauri + fallback browser
   drafts.js       penyimpanan & pemulihan draf (murni, storage di-inject)
   image-policy.js allow-list gambar jarak jauh per dokumen
@@ -50,7 +51,7 @@ ui/
 tests/
   harness.js        jsdom + Quill/marked hasil vendoring (bukan mock)
   *.test.js         unit + round-trip sungguhan + smoke test boot aplikasi
-.github/workflows/  CI: tes Node + build Rust di Linux/Windows/macOS
+.github/workflows/  CI: tes Node + Chromium + build Rust lintas OS
 src-tauri/
   src/main.rs       shell Tauri + perintah berkas + menu native
   tauri.conf.json   konfigurasi aplikasi
@@ -78,14 +79,35 @@ Tes berjalan di `node:test` + jsdom dan menggunakan berkas `ui/vendor/` yang
 **sama** dengan yang dikirim ke webview — jadi round-trip yang diuji bukan
 tiruan. Cakupan: heading, indentasi & bahasa code block, fence backtick
 bersarang, list campuran bernomor, task list, alignment tabel, garis pemisah,
-tautan/gambar, warna, underline, escape teks, penolakan injeksi CSS/URL,
+tautan/gambar, warna, underline, escape teks, front matter, nomor awal list,
+raw HTML/komentar, blockquote kompleks, hard break, penolakan injeksi CSS/URL,
 idempotensi serialisasi, paritas jumlah kata lintas mode, dan smoke test yang
 memuat `index.html` + `app.js` sungguhan untuk menjaga wiring DOM tetap utuh.
 
-Beberapa perilaku yang sengaja didokumentasikan sebagai **batasan yang diketahui**
-(diuji supaya perubahannya ketahuan): soft line break melebur jadi spasi sesuai
-CommonMark, hard break di paragraf biasa berubah jadi dua paragraf, dan raw HTML
-kehilangan tag pembungkusnya.
+Batasan yang diketahui dan dikunci oleh tes: soft line break melebur jadi spasi
+sesuai CommonMark; hard break dinormalisasi ke sintaks backslash; struktur yang
+belum dapat diedit secara setia oleh Quill tampil sebagai raw read-only dan
+diedit melalui mode Markdown.
+
+### Validasi runtime Chromium (opsional)
+
+Tooling browser tidak dibutuhkan oleh aplikasi dan tidak ditambahkan ke
+`package.json`/lockfile. Versi dipin agar pemeriksaan dapat diulang:
+
+```bash
+npm install --no-save --package-lock=false playwright-core@1.64.1 @sparticuz/chromium@153.0.0
+npm run test:browser
+```
+
+Skrip menjalankan server lokalnya sendiri dan memeriksa boot/viewport minimum,
+konstruk fidelity + toggle keyboard, buka file → ketik → draf recovery →
+download, serta privasi gambar remote. Untuk memakai Chrome/Chromium yang sudah
+terpasang, cukup pasang `playwright-core@1.64.1` lalu set `CHROMIUM_PATH` ke
+executable-nya.
+
+CI menjalankan pemeriksaan ini pada Chromium/Linux. Ini **bukan** pengganti
+pengujian webview Tauri atau GUI native Windows/macOS/Linux di
+`DESKTOP-TEST-CHECKLIST.md`.
 
 ## Keputusan UI
 
@@ -144,7 +166,7 @@ dengan begitu `https:` bisa dihapus total dari CSP.
 
 | Arah | Jalur |
 | --- | --- |
-| Markdown → WYSIWYG | `marked` → normalisasi DOM → `quill.clipboard.dangerouslyPasteHTML()` |
+| Markdown → WYSIWYG | proteksi raw → `marked` → normalisasi DOM → `quill.clipboard.dangerouslyPasteHTML()` |
 | WYSIWYG → Markdown | `linesFromQuill()` → `serializeLines()` di `ui/core/serialize.js` |
 
 Konversi balik **tidak** memakai Turndown. Quill 2 tidak memakai DOM standar — code block
@@ -152,16 +174,21 @@ adalah `<div>`, bullet list direpresentasikan sebagai `<ol data-list="bullet">`,
 disimpan sebagai atribut format. Mengonversi DOM-nya akan merusak ketiganya, sehingga
 serializer ini membaca **Delta** Quill langsung, yang merupakan model datanya yang sebenarnya.
 
-Hal-hal yang dijaga saat round-trip: bahasa **dan indentasi** pada fenced code block
-(spasi/tab di awal baris tidak lagi terlipat), jenis list (bullet/ordered/bersarang,
-termasuk list campuran dengan penomoran yang tetap berlanjut), task list, tabel GFM
-beserta alignment kolom `:---:`/`---:`, backtick di dalam inline code (fence memanjang
-otomatis), tautan, gambar, warna teks dan latar, serta garis pemisah (`---`).
+Hal-hal yang dijaga saat round-trip: **YAML front matter** (sebagai blok read-only
+di WYSIWYG dan dapat diedit lewat mode Markdown), bahasa **dan indentasi** pada
+fenced code block (spasi/tab di awal baris tidak lagi terlipat), jenis list
+(bullet/ordered/bersarang, termasuk nomor awal ordered list dan list campuran
+dengan penomoran yang tetap berlanjut), task list, tabel GFM beserta alignment
+kolom `:---:`/`---:`, backtick di dalam inline code (fence memanjang otomatis),
+tautan beserta judulnya, gambar, warna teks dan latar, garis pemisah (`---`),
+hard break, serta raw HTML/komentar dan blockquote kompleks. Raw HTML yang belum
+memiliki ekuivalen visual aman serta list/nesting di dalam blockquote dipertahankan
+sebagai **blok raw read-only**; tidak diratakan menjadi paragraf dan tidak
+dieksekusi sebagai HTML aktif. Bagian tersebut tetap editable di mode Markdown.
 
 Catatan batasan: Quill 2 tidak menyimpan alignment rata kiri eksplisit, jadi `:---`
-ditulis ulang menjadi `---` (keduanya identik secara GFM). Quill juga melepas atribut
-blockquote pada baris yang sekaligus merupakan item list, sehingga list di dalam
-blockquote tidak bisa dipertahankan.
+ditulis ulang menjadi `---` (keduanya identik secara GFM). Soft line break mengikuti
+CommonMark dan autolink dapat dinormalisasi menjadi sintaks tautan inline.
 
 ## Library yang di-vendoring
 
@@ -254,8 +281,9 @@ Belum / perlu diperhatikan:
 - **CSP `img-src` masih mengizinkan `https:`** demi fitur pemuatan gambar atas
   izin eksplisit (lihat *Privasi gambar jarak jauh* di atas). Pemblokiran
   otomatis sudah aktif, tetapi pertahanannya ada di lapisan aplikasi.
-- **Raw HTML**, soft/hard line break, dan `:---` mengikuti batasan yang sudah
-  dijelaskan di bagian konversi.
+- **Blok raw read-only** belum dapat diedit visual; gunakan mode Markdown untuk
+  raw HTML kompleks dan list/nesting di dalam blockquote. Soft line break,
+  normalisasi hard break, dan `:---` mengikuti batasan di bagian konversi.
 - **Lisensi proyek** belum ditentukan. Yang ada saat ini hanya lisensi
   milik library yang di-vendoring; pilih lisensi untuk kode MarkRust sendiri
   sebelum dirilis ke publik.

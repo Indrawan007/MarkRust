@@ -6,7 +6,8 @@
   "description": "Dev/test tooling ONLY. MarkRust runtime needs no Node, no bundler, no framework.",
   "scripts": {
     "test": "node --test tests/*.test.js",
-    "test:watch": "node --test --watch tests/*.test.js"
+    "test:watch": "node --test --watch tests/*.test.js",
+    "test:browser": "node scripts/validate-browser.mjs"
   },
   "devDependencies": {
     "jsdom": "^26.1.0"

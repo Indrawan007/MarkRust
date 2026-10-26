@@ -1,5 +1,43 @@
 # Laporan status & handoff MarkRust
 
+## Update 27 Oktober 2026 — fidelity Markdown tahap 1B
+
+- Raw HTML/komentar, inline HTML yang atributnya belum didukung, serta
+  list/nesting/heading di dalam blockquote dipertahankan sebagai raw read-only;
+  tidak lagi diratakan atau dibuang. Isi raw tidak menjadi elemen HTML aktif.
+- Hard break memiliki blot inline sendiri dan diserialkan sebagai backslash +
+  newline (atau `<br>` di tabel), bukan diubah menjadi paragraf baru.
+- Token proteksi raw memiliki fail-safe whole-document agar kegagalan pemetaan
+  tidak menyimpan token atau membuang isi. Whitespace antar-embed diuji agar
+  tidak menghasilkan paragraf spasi palsu.
+- Verifikasi lokal terakhir: **172 tests, 172 pass, 0 fail**;
+  `git diff --check` bersih. GUI/Rust native tetap belum diuji.
+
+## Update 27 Oktober 2026 — validasi runtime Chromium
+
+- `npm run test:browser` lulus pada **Chromium 153.0.8010.0**: boot dan viewport
+  minimum; front matter/raw block/hard break + `Ctrl+Shift+M`; buka file →
+  ketik → draf recovery → download; serta nol request gambar remote sebelum
+  izin dan hanya satu request yang diizinkan sesudahnya.
+- Tidak ada console error maupun page error pada keempat kelompok. Screenshot
+  raw/hard-break juga diperiksa: dua baris tetap dua baris dan raw tampil sebagai
+  teks read-only, bukan HTML aktif.
+- Job CI `Runtime Chromium` memakai tooling opsional dengan versi dipin. Hasil
+  Chromium/Linux ini tidak menggantikan checklist webview/GUI native.
+
+## Update 27 Oktober 2026 — fidelity Markdown tahap 1A
+
+- YAML front matter dipisahkan sebelum `marked`, ditampilkan sebagai embed
+  read-only di WYSIWYG, dan dikembalikan utuh oleh serializer.
+- Nomor awal ordered list dan judul tautan inline disimpan sebagai metadata
+  Quill sehingga bertahan saat berpindah mode dan disimpan.
+- Newline berurutan di dalam blok tidak lagi di-collapse global; whitespace
+  front matter dan code block lebih aman.
+- Verifikasi lokal: `npm test` → **155 tests, 155 pass, 0 fail**;
+  `git diff --check` bersih. GUI/Rust native tetap belum diuji pada perubahan ini.
+
+Bagian berikut adalah laporan historis untuk konteks pekerjaan sebelumnya.
+
 Tanggal: 24 Oktober 2026. Branch: `arena/bcbf3e21-markrust`.
 Dokumen ini adalah titik masuk untuk melanjutkan pekerjaan; baca bersama
 [ROADMAP.md](ROADMAP.md) dan [DESKTOP-TEST-CHECKLIST.md](DESKTOP-TEST-CHECKLIST.md).
@@ -47,7 +85,9 @@ memiliki tes otomatis tersendiri; masukkan ke uji F07.
 
 ## Verifikasi yang tersedia
 
-- Lokal: `npm test` → **144 tests, 144 pass, 0 fail**.
+- Lokal pada update 27 Oktober 2026 (tahap 1B): `npm test` → **172 tests, 172 pass, 0 fail**.
+- Chromium 153 lokal: `npm run test:browser` → **4/4 kelompok lulus**, tanpa
+  console/page error; cakupan dan batasnya dijelaskan pada update di atas.
 - Tidak ada toolchain Rust lokal; Rust diverifikasi lewat GitHub Actions.
 - CI M1c `40073225635`, commit `0ecfd7a`: Node + build/test Rust Linux,
   Windows, macOS lulus. Bundel rilis tidak berjalan pada push biasa.

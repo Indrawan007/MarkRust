@@ -9,9 +9,42 @@
 import {
   shouldBlockRemoteImage, isRemoteImageUrl, IMAGE_PLACEHOLDER
 } from './image-policy.js';
+import { protectRawMarkdown } from './raw-markdown.js';
 
 export function escapeHtml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/**
+ * Pisahkan YAML front matter sebelum marked melihat dokumen. Penutup `---`
+ * atau `...` wajib ada; jika tidak, input diperlakukan sebagai Markdown biasa.
+ * Line ending dinormalkan ke LF seperti output serializer lainnya.
+ */
+export function splitFrontmatter(md) {
+  const source = String(md == null ? '' : md);
+  const unchanged = { frontmatter: null, body: source };
+  const firstEnd = source.indexOf('\n');
+  if (firstEnd < 0) return unchanged;
+  const firstLine = source.slice(0, firstEnd).replace(/\r$/, '').replace(/^\uFEFF/, '');
+  if (!/^---[ \t]*$/.test(firstLine)) return unchanged;
+
+  let offset = firstEnd + 1;
+  while (offset <= source.length) {
+    const next = source.indexOf('\n', offset);
+    const end = next < 0 ? source.length : next;
+    const line = source.slice(offset, end).replace(/\r$/, '');
+    if (/^(?:---|\.\.\.)[ \t]*$/.test(line)) {
+      let rawEnd = end;
+      if (rawEnd > 0 && source.charAt(rawEnd - 1) === '\r') rawEnd--;
+      return {
+        frontmatter: source.slice(0, rawEnd).replace(/\r\n?/g, '\n'),
+        body: source.slice(rawEnd)
+      };
+    }
+    if (next < 0) break;
+    offset = next + 1;
+  }
+  return unchanged;
 }
 
 /**
@@ -94,15 +127,50 @@ function sanitizeUntrustedHtml(root) {
   }
 }
 
-export function normalizeForQuill(html, DOMParserImpl) {
+function restoreRawBlocks(root, doc, blocks) {
+  for (const block of blocks || []) {
+    const paragraphs = root.querySelectorAll('p');
+    let restored = false;
+    for (const paragraph of paragraphs) {
+      if (paragraph.textContent.trim() !== block.token) continue;
+      const raw = doc.createElement('mr-raw-block');
+      raw.setAttribute('class', 'mr-raw-block');
+      raw.textContent = block.markdown;
+      paragraph.parentNode.replaceChild(raw, paragraph);
+      restored = true;
+      break;
+    }
+    if (!restored) throw new Error('Token blok raw tidak dapat dipulihkan dengan aman');
+  }
+}
+
+export function normalizeForQuill(html, DOMParserImpl, rawBlocks) {
   var Parser = DOMParserImpl || globalThis.DOMParser;
   if (!Parser) throw new Error('normalizeForQuill membutuhkan DOMParser');
   var doc = new Parser().parseFromString('<div id="__mr_root">' + html + '</div>', 'text/html');
   var root = doc.getElementById('__mr_root');
+  var i, nodes;
+
+  restoreRawBlocks(root, doc, rawBlocks);
+
+  // marked menyisipkan newline antar-tag blok. Pada embed raw, Quill dapat
+  // mengubah whitespace itu menjadi <p> </p> palsu. Hanya whitespace level
+  // akar yang dibuang; whitespace di dalam raw/code/paragraf tetap utuh.
+  const rootText = [];
+  for (let child = root.firstChild; child; child = child.nextSibling) {
+    if (child.nodeType === 3 && !child.nodeValue.trim()) rootText.push(child);
+  }
+  for (const child of rootText) root.removeChild(child);
 
   sanitizeUntrustedHtml(root);
 
-  var i, nodes;
+  // BR bawaan Quill diubah menjadi blok baru. Blot inline khusus mempertahankan
+  // hard break dalam paragraf/list/quote yang sama saat diserialkan.
+  nodes = root.querySelectorAll('br');
+  for (i = 0; i < nodes.length; i++) {
+    const hardBreak = doc.createElement('mr-hard-break');
+    nodes[i].parentNode.replaceChild(hardBreak, nodes[i]);
+  }
 
   // <th> -> <td> (marked menaruh align="left|center|right" pada th maupun td)
   nodes = root.querySelectorAll('th');
@@ -192,14 +260,29 @@ export function mdToQuillHtml(md, parse, DOMParserImpl) {
     // async:false -> mengembalikan string, bukan Promise.
     return m.parse(String(src || ''), { gfm: true, breaks: false, async: false });
   };
+  const parts = splitFrontmatter(md);
+  const protectedMarkdown = protectRawMarkdown(parts.body);
   var html;
   try {
-    html = parseFn(String(md || ''));
+    html = parseFn(protectedMarkdown.source);
   } catch (e) {
-    html = '<p>' + escapeHtml(md) + '</p>';
+    html = '<p>' + escapeHtml(protectedMarkdown.source) + '</p>';
   }
-  if (typeof html !== 'string') return '<p></p>';
-  return normalizeForQuill(html, DOMParserImpl);
+  if (typeof html !== 'string') html = '<p></p>';
+  let normalized;
+  try {
+    normalized = normalizeForQuill(html, DOMParserImpl, protectedMarkdown.blocks);
+  } catch (e) {
+    if (!protectedMarkdown.blocks.length) throw e;
+    // Fail-safe: jika token tidak dapat dipetakan, seluruh body tetap disimpan
+    // sebagai raw read-only. Jangan pernah menyimpan token atau kehilangan isi.
+    normalized = '<mr-raw-block class="mr-raw-block">' + escapeHtml(parts.body) +
+      '</mr-raw-block>';
+  }
+  if (parts.frontmatter === null) return normalized;
+  // escapeHtml membuat YAML aman sekalipun memuat teks yang menyerupai HTML.
+  return '<mr-frontmatter class="mr-frontmatter">' + escapeHtml(parts.frontmatter) +
+    '</mr-frontmatter>' + normalized;
 }
 
 /* ------------------------------------------------------------------------- *
@@ -213,7 +296,8 @@ export function mdToQuillHtml(md, parse, DOMParserImpl) {
  * dan gambar ikut dibuang sehingga jumlahnya sama dengan mode WYSIWYG.
  */
 export function plainTextFromMarkdown(md) {
-  var text = String(md == null ? '' : md);
+  // Metadata dokumen bukan kata yang sedang ditulis pengguna di isi utama.
+  var text = splitFrontmatter(md).body;
 
   // Fenced code: isinya tetap dihitung, fence + info string dibuang.
   text = text.replace(/^ {0,3}(`{3,}|~{3,})[^\n]*\n([\s\S]*?)^ {0,3}\1[ \t]*$/gm,
@@ -230,6 +314,9 @@ export function plainTextFromMarkdown(md) {
 
   // Inline code: simpan isinya saja.
   text = text.replace(/(`+)([\s\S]*?)\1/g, '$2');
+
+  // Backslash di akhir baris adalah hard break, bukan karakter yang terlihat.
+  text = text.replace(/\\\n/g, '\n');
 
   // Marker emphasis/strike dibuang, bukan diganti spasi, supaya tidak
   // memecah kata yang memang tersambung (foo*bar* tetap satu kata).

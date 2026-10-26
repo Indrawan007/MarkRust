@@ -9,7 +9,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   registerDividerBlot, registerHrMatcher,
-  registerSafeImageBlot, registerImageMatcher
+  registerSafeImageBlot, registerImageMatcher,
+  registerFrontmatterBlot, registerMarkdownMetadata, registerMarkdownMetadataMatchers,
+  registerRawContentBlots
 } from '../ui/core/quill-setup.js';
 import { resetImagePolicy } from '../ui/core/image-policy.js';
 
@@ -79,6 +81,9 @@ export function getEnv() {
   // seperti yang terjadi saat tes round-trip gambar gagal.
   registerDividerBlot(Quill);
   registerSafeImageBlot(Quill);
+  registerFrontmatterBlot(Quill);
+  registerMarkdownMetadata(Quill);
+  registerRawContentBlots(Quill);
 
   env = { dom, window, Quill, marked, DOMParser: window.DOMParser };
   return env;
@@ -109,5 +114,6 @@ export function createQuill(extraModules = {}) {
   });
   registerHrMatcher(quill, Quill);
   registerImageMatcher(quill, Quill);
+  registerMarkdownMetadataMatchers(quill);
   return quill;
 }
