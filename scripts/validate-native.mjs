@@ -13,9 +13,9 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const appPath = path.resolve(root, process.env.MARKRUST_NATIVE_APP || 'src-tauri/target/debug/markrust');
 const artifactDir = path.resolve(root, process.env.MARKRUST_NATIVE_ARTIFACTS || '/tmp/markrust-native');
 const driverCommand = process.env.TAURI_DRIVER_PATH || 'tauri-driver';
-const port = Number(process.env.TAURI_DRIVER_PORT || 4444);
-const nativePort = Number(process.env.TAURI_NATIVE_DRIVER_PORT || 4445);
-const base = `http://127.0.0.1:${port}`;
+let port = Number(process.env.TAURI_DRIVER_PORT || 4444);
+let nativePort = Number(process.env.TAURI_NATIVE_DRIVER_PORT || 4445);
+let base = `http://127.0.0.1:${port}`;
 const ELEMENT_KEY = 'element-6066-11e4-a52e-4f735466cecf';
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const results = [];
@@ -28,6 +28,7 @@ let driverLog;
 let sessionId = '';
 let tempRoot = '';
 let failure = null;
+let skipSessionCleanup = false;
 
 function recordDriver(chunk) {
   const text = String(chunk);
@@ -145,17 +146,9 @@ async function invoke(command, args = {}) {
   });
 }
 
-try {
-  assert.equal(process.platform, 'linux', 'Harness native ini saat ini hanya mendukung Linux/WebKitGTK');
-  const appStat = await fs.stat(appPath).catch(() => null);
-  assert.ok(appStat?.isFile(), `Binary Tauri tidak ditemukan: ${appPath}. Jalankan cargo build --manifest-path src-tauri/Cargo.toml terlebih dahulu.`);
-  await fs.mkdir(artifactDir, { recursive: true });
-  driverLog = fsSync.createWriteStream(path.join(artifactDir, 'tauri-driver.log'));
-  tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'markrust-native-e2e-'));
-  for (const dir of ['data', 'config', 'cache']) {
-    await fs.mkdir(path.join(tempRoot, dir), { recursive: true });
-  }
-
+async function startDriver() {
+  driverError = null;
+  recordDriver(`\n--- tauri-driver ${port} / WebKitWebDriver ${nativePort} ---\n`);
   driver = spawn(driverCommand, ['--port', String(port), '--native-port', String(nativePort)], {
     cwd: root,
     detached: true,
@@ -170,21 +163,81 @@ try {
   driver.on('error', (error) => { driverError = error; recordDriver(`${error.stack || error}\n`); });
   driver.stdout.on('data', recordDriver);
   driver.stderr.on('data', recordDriver);
-  process.on('exit', () => killDriver('SIGTERM'));
-
   await waitFor('tauri-driver siap', async () => {
     if (driverError) throw driverError;
     if (driver.exitCode !== null) throw new Error(`tauri-driver keluar dengan kode ${driver.exitCode}`);
     const status = await request('GET', '/status', undefined, 1000);
     return status?.ready !== false;
   }, 20000);
+}
 
+async function createSession() {
   const created = await request('POST', '/session', {
     capabilities: { alwaysMatch: { 'tauri:options': { application: appPath } } }
   }, 90000);
   sessionId = created?.sessionId;
   assert.ok(sessionId, `Session ID tidak ada: ${JSON.stringify(created)}`);
   await request('POST', `${sessionRoute()}/timeouts`, { script: 30000, pageLoad: 30000, implicit: 0 });
+}
+
+async function restartDriverAndSession() {
+  await stopDriver();
+  driver = undefined;
+  // Jangan bergantung pada waktu pelepasan port native driver lama.
+  port += 2;
+  nativePort += 2;
+  base = `http://127.0.0.1:${port}`;
+  await startDriver();
+  await createSession();
+}
+
+async function findAppPids() {
+  const expectedExe = await fs.realpath(appPath);
+  const expectedEnv = `XDG_DATA_HOME=${path.join(tempRoot, 'data')}`;
+  const entries = await fs.readdir('/proc');
+  const pids = [];
+  for (const entry of entries) {
+    if (!/^\d+$/.test(entry)) continue;
+    try {
+      const exe = await fs.readlink(`/proc/${entry}/exe`);
+      if (exe !== expectedExe) continue;
+      const environ = await fs.readFile(`/proc/${entry}/environ`, 'utf8');
+      if (environ.includes(expectedEnv)) pids.push(Number(entry));
+    } catch { /* proses berakhir atau /proc tidak dapat dibaca */ }
+  }
+  return pids;
+}
+
+async function forceKillApp() {
+  const pids = await findAppPids();
+  assert.equal(pids.length, 1, `Harus ada tepat satu proses MarkRust untuk data uji; ditemukan: ${pids.join(', ')}`);
+  const pid = pids[0];
+  process.kill(pid, 'SIGKILL');
+  sessionId = ''; // Sesi WebDriver untuk proses itu tidak dapat dipakai lagi.
+  await waitFor(`proses MarkRust ${pid} berhenti`, async () => {
+    const stat = await fs.readFile(`/proc/${pid}/stat`, 'utf8').catch(() => '');
+    if (!stat) return true;
+    const endCommand = stat.lastIndexOf(') ');
+    const state = endCommand >= 0 ? stat.slice(endCommand + 2, endCommand + 3) : '';
+    return state === 'Z'; // Zombie sudah mati dan lock OS sudah dilepas.
+  }, 10000);
+  return pid;
+}
+
+try {
+  assert.equal(process.platform, 'linux', 'Harness native ini saat ini hanya mendukung Linux/WebKitGTK');
+  const appStat = await fs.stat(appPath).catch(() => null);
+  assert.ok(appStat?.isFile(), `Binary Tauri tidak ditemukan: ${appPath}. Jalankan cargo build --manifest-path src-tauri/Cargo.toml terlebih dahulu.`);
+  await fs.mkdir(artifactDir, { recursive: true });
+  driverLog = fsSync.createWriteStream(path.join(artifactDir, 'tauri-driver.log'));
+  tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'markrust-native-e2e-'));
+  for (const dir of ['data', 'config', 'cache']) {
+    await fs.mkdir(path.join(tempRoot, dir), { recursive: true });
+  }
+
+  process.on('exit', () => killDriver('SIGTERM'));
+  await startDriver();
+  await createSession();
 
   await step('boot WebKitGTK native, API Tauri, dan close handler', async () => {
     await waitFor('window.MarkRust dan window.__TAURI__', () => execute(
@@ -292,6 +345,51 @@ try {
     assert.equal(await invoke('read_document', { path: sourcePath }), expected);
     await screenshot('03-native-saved.png');
   });
+
+  await step('force-kill/restart mempertahankan snapshot untuk instance native baru', async () => {
+    const marker = 'Draf force-kill Ω.';
+    const crashPath = await execute('return window.MarkRust.getPath();');
+    const savedOnDisk = await fs.readFile(crashPath, 'utf8');
+    await execute(`
+      const q = window.MarkRust.quill;
+      q.insertText(q.getLength() - 1, '\\n' + arguments[0], 'user');
+    `, [marker]);
+    const beforeDraft = await waitFor('snapshot sebelum force-kill', async () => {
+      const recovery = await invoke('read_recovery');
+      if (!recovery) return false;
+      const value = JSON.parse(recovery);
+      return value.markdown.includes(marker) ? value : false;
+    }, 8000);
+    assert.equal(beforeDraft.path, crashPath);
+
+    const firstPid = await forceKillApp();
+    // Restore berikutnya mungkin membuka dialog native; jangan menutup lewat UI.
+    skipSessionCleanup = true;
+    await restartDriverAndSession();
+    await waitFor('instance MarkRust baru setelah restart', () => execute(
+      'return !!(window.MarkRust && window.__TAURI__ && window.MarkRust.isCloseHandlerRegistered());'
+    ));
+    const secondPids = await findAppPids();
+    assert.equal(secondPids.length, 1, JSON.stringify(secondPids));
+    assert.notEqual(secondPids[0], firstPid, 'Restart harus memakai proses OS baru');
+
+    const afterDraft = await waitFor('snapshot terbaca dari instance baru', async () => {
+      const recovery = await invoke('read_recovery');
+      if (!recovery) return false;
+      const value = JSON.parse(recovery);
+      return value.markdown.includes(marker) ? value : false;
+    }, 10000);
+    assert.equal(afterDraft.path, crashPath);
+    assert.equal(afterDraft.markdown, beforeDraft.markdown);
+    const rows = JSON.parse(await invoke('list_recoveries'));
+    assert.equal(rows.length, 1, JSON.stringify(rows));
+    assert.equal(rows[0].path, crashPath);
+    // Tidak ada autosave: edit yang hanya ada di recovery tidak masuk file asli.
+    assert.equal(await fs.readFile(crashPath, 'utf8'), savedOnDisk);
+    await screenshot('04-native-recovery-restart.png');
+    // Dialog restore belum dikonfirmasi; akhiri proses uji tanpa memilih jawaban.
+    await forceKillApp();
+  });
 } catch (error) {
   failure = error;
   console.error(error.stack || error);
@@ -300,11 +398,13 @@ try {
     try { await screenshot('failure.png'); } catch { /* abaikan kegagalan bukti tambahan */ }
   }
 } finally {
-  if (sessionId) {
+  if (sessionId && !skipSessionCleanup) {
     try {
       await execute('window.MarkRust.discardDraft(); window.MarkRust.markClean();');
       await request('DELETE', sessionRoute(), undefined, 10000);
     } catch { /* driver dihentikan di bawah bila sesi/macet */ }
+  } else if (sessionId) {
+    try { await forceKillApp(); } catch { /* driver tetap dihentikan */ }
   }
   await stopDriver();
   if (driverLog) await new Promise((resolve) => driverLog.end(resolve));

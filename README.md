@@ -126,14 +126,18 @@ MARKRUST_NATIVE_ARTIFACTS=/tmp/markrust-native xvfb-run -a npm run test:native
 ```
 
 Cakupannya adalah boot WebKitGTK/API Tauri/close handler, raw block + hard break
-+ `Ctrl+Shift+M`, serta buka → edit → recovery disk → simpan pada path Unicode
-dan spasi. Hanya pemilihan path pada dialog Buka yang distub; pembacaan,
-penulisan, recovery, serializer, dan state UI tetap melalui implementasi
-Tauri/Rust nyata. Screenshot dan log driver disimpan di direktori artefak.
++ `Ctrl+Shift+M`, buka → edit → recovery disk → simpan pada path Unicode dan
+spasi, serta `SIGKILL` → restart → snapshot terbaca oleh proses baru tanpa
+mengubah file asli. Hanya pemilihan path pada dialog Buka yang distub;
+pembacaan, penulisan, recovery, serializer, dan state UI tetap melalui
+implementasi Tauri/Rust nyata. Screenshot dan log driver disimpan di direktori
+artefak.
 
-Pemeriksaan ini berjalan pada job Rust/Linux CI sebagai bagian M2. Ini bukan
-bukti dialog manual, force-kill, dua proses desktop, installer, atau runtime
-Windows/macOS; kasus tersebut tetap mengikuti `DESKTOP-TEST-CHECKLIST.md`.
+Pemeriksaan ini berjalan pada job Rust/Linux CI sebagai bagian M2. Dialog
+restore setelah crash tidak dijawab, sehingga hasil force-kill/restart bukan
+bukti restore GUI penuh. Dialog manual, dua proses desktop bersamaan,
+installer, dan runtime Windows/macOS juga belum dicakup; kasus tersebut tetap
+mengikuti `DESKTOP-TEST-CHECKLIST.md`.
 
 ## Keputusan UI
 
