@@ -58,6 +58,13 @@ distub pada pemilihan path. Ini adalah bukti runtime native otomatis pertama,
 bukan penutupan M2: checklist manual tiga OS, dialog nyata, force-kill, dua
 proses, network inspector, dan installer masih terbuka.
 
+Lanjutan pada commit `c1e7372`, CI `40421156995`: empat kelompok native lulus di
+`ubuntu-24.04`, termasuk `SIGKILL` dan proses baru yang membaca snapshot dengan
+path/Markdown sama sementara file asli tidak berubah. Dialog restore tidak
+dijawab, sehingga R01/restore GUI penuh dan M2 tetap terbuka. Target Linux native
+dan bundel dipin ke Ubuntu 24.04 setelah dua run `ubuntu-latest` terhambat apt;
+Chromium tetap berjalan pada `ubuntu-latest`.
+
 ## M3 — Privasi gambar ditegakkan lintas lapisan (prioritas tinggi)
 
 **Tujuan:** hilangkan izin gambar jaringan langsung dari CSP tanpa membuka

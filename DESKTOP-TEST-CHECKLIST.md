@@ -21,10 +21,10 @@ Gunakan dokumen sintetis dan folder uji, bukan berkas kerja satu-satunya.
 
 ## Bukti otomatis native Linux (tidak mengubah tabel manual)
 
-Commit `809f22f`, [CI `40414344817`](https://github.com/Indrawan007/MarkRust/actions/runs/40414344817),
+Commit `c1e7372`, [CI `40421156995`](https://github.com/Indrawan007/MarkRust/actions/runs/40421156995),
 27 Oktober 2026: langkah **Validasi WebView Tauri native (Linux/Xvfb)** PASS pada
-runner `ubuntu-latest`, binary Tauri + WebKitGTK melalui `tauri-driver` 2.1.0 dan
-`WebKitWebDriver`. Versi image/WebKit mengikuti runner dan tidak dicatat sebagai
+runner `ubuntu-24.04`, binary Tauri + WebKitGTK melalui `tauri-driver` 2.1.0 dan
+`WebKitWebDriver`. Versi WebKit mengikuti image runner dan tidak dicatat sebagai
 versi manual yang sudah diverifikasi.
 
 | ID otomatis | Cakupan yang benar-benar dijalankan | Hasil / bukti |
@@ -32,16 +32,19 @@ versi manual yang sudah diverifikasi.
 | A01 | Boot binary Tauri; API `window.__TAURI__`, editor, statistik, dan close handler tersedia | PASS; screenshot `01-native-boot.png` |
 | A02 | Front matter, raw block, hard break, script raw tidak aktif, dan `Ctrl+Shift+M` bolak-balik | PASS; screenshot `02-native-fidelity.png` |
 | A03 | Buka → edit → snapshot recovery disk → simpan → baca ulang pada path Unicode/spasi melalui IPC Rust | PASS; screenshot `03-native-saved.png` |
+| A04 | `SIGKILL` → driver/proses baru (PID berbeda) → snapshot dengan path/Markdown sama terbaca; file asli tidak berubah | PASS; screenshot `04-native-recovery-restart.png`; dialog restore tidak dijawab |
 
 Artefak run: `native-webview-linux` (screenshot + `tauri-driver.log`, retensi 7
 hari). Pada A03 hanya pemilihan path dialog Buka yang distub; perintah
 `read_document`, `write_document`, recovery, serializer, dan state UI nyata.
+A04 membaca snapshot dari instance baru tetapi tidak menjawab dialog restore.
 Screenshot tidak diinspeksi di sandbox karena host unduhan artefak eksternal
-tidak dapat diakses; keberhasilan A01–A03 berasal dari status langkah CI.
+tidak dapat diakses; keberhasilan A01–A04 berasal dari status langkah CI.
 
-Bukti ini **tidak** menandai F01/F02/F09 atau kasus manual lain sebagai PASS.
-Dialog nyata, window controls, force-kill, dua proses, network inspector,
-installer, serta runtime native Windows/macOS masih harus diuji terpisah.
+Bukti ini **tidak** menandai F01/F02/F09/R01 atau kasus manual lain sebagai PASS.
+Dialog nyata dan restore GUI penuh, window controls, dua proses bersamaan,
+network inspector, installer, serta runtime native Windows/macOS masih harus
+diuji terpisah.
 
 ## Matriks kasus wajib (ulangi pada tiap OS)
 

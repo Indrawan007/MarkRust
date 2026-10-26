@@ -133,8 +133,8 @@ pembacaan, penulisan, recovery, serializer, dan state UI tetap melalui
 implementasi Tauri/Rust nyata. Screenshot dan log driver disimpan di direktori
 artefak.
 
-Pemeriksaan ini berjalan pada job Rust/Linux CI sebagai bagian M2. Dialog
-restore setelah crash tidak dijawab, sehingga hasil force-kill/restart bukan
+Pemeriksaan ini berjalan pada job Rust/Linux CI (`ubuntu-24.04`) sebagai bagian
+M2. Dialog restore setelah crash tidak dijawab, sehingga hasil force-kill/restart bukan
 bukti restore GUI penuh. Dialog manual, dua proses desktop bersamaan,
 installer, dan runtime Windows/macOS juga belum dicakup; kasus tersebut tetap
 mengikuti `DESKTOP-TEST-CHECKLIST.md`.

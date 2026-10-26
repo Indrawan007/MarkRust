@@ -1,5 +1,26 @@
 # Laporan status & handoff MarkRust
 
+## Update 27 Oktober 2026 — M2: force-kill/restart native
+
+- Commit `c1e7372`, CI `40421156995`: **4/4 kelompok native Linux/WebKitGTK
+  lulus**. Kelompok baru mematikan proses MarkRust pertama dengan `SIGKILL`,
+  menjalankan driver dan proses baru dengan direktori data yang sama, lalu
+  membuktikan PID berbeda dan snapshot terbaru tetap dapat dibaca.
+- Path dan Markdown snapshot identik, tepat satu kandidat recovery terlihat,
+  dan file asli tetap identik (tidak ada autosave). Dialog restore tidak
+  dijawab, jadi ini bukan bukti restore GUI penuh dan **R01 manual belum PASS**.
+- Dua run pada `ubuntu-latest` tidak menjalankan native karena apt macet; run
+  `40419832339` berakhir timeout pada dependensi setelah 10 menit. Setup menjadi
+  non-interactive dan build/native/bundel Linux dipin ke `ubuntu-24.04`; run
+  terbaru kemudian lulus. Ini tercatat sebagai masalah infrastruktur CI, bukan
+  kegagalan aplikasi.
+- Node 172 tes, Chromium 4 kelompok, dan build/test Rust pada tiga OS juga
+  lulus pada run terbaru. Artefak `native-webview-linux` memuat empat screenshot
+  dan log dua generasi driver; screenshot tetap belum dapat diinspeksi dari
+  sandbox karena host unduhan eksternal.
+- M2 tetap terbuka: restore lewat dialog nyata, dua proses bersamaan, checklist
+  manual, native Windows/macOS, dan installer belum diuji.
+
 ## Update 27 Oktober 2026 — M2: WebView native Linux otomatis
 
 - Commit `809f22f`, CI `40414344817`: langkah **Validasi WebView Tauri native
@@ -106,8 +127,9 @@ memiliki tes otomatis tersendiri; masukkan ke uji F07.
 - Lokal pada update 27 Oktober 2026 (tahap 1B): `npm test` → **172 tests, 172 pass, 0 fail**.
 - Chromium 153 lokal: `npm run test:browser` → **4/4 kelompok lulus**, tanpa
   console/page error; cakupan dan batasnya dijelaskan pada update di atas.
-- CI `40414344817`, commit `809f22f`: **3/3 kelompok WebView Tauri native
-  Linux/WebKitGTK lulus**; cakupan dan batasnya dijelaskan pada update M2.
+- CI `40421156995`, commit `c1e7372`: **4/4 kelompok WebView Tauri native
+  Linux/WebKitGTK lulus**, termasuk force-kill/restart; batas restore GUI dan
+  cakupan lain dijelaskan pada update M2.
 - Tidak ada toolchain Rust lokal; Rust diverifikasi lewat GitHub Actions.
 - CI M1c `40073225635`, commit `0ecfd7a`: Node + build/test Rust Linux,
   Windows, macOS lulus. Bundel rilis tidak berjalan pada push biasa.
@@ -122,9 +144,10 @@ memiliki tes otomatis tersendiri; masukkan ke uji F07.
 
 Jalankan checklist tiga OS. Audit khusus registrasi close listener, permission,
 close berulang, Cmd+Q, error IPC, dan dialog yang dibatalkan. Bukti otomatis
-Linux/WebKitGTK kini ada pada CI `40414344817`, tetapi belum mencakup kasus
-manual tersebut dan belum ada runtime native Windows/macOS. Jangan menandai
-M1/M2 selesai dulu.
+Linux/WebKitGTK kini ada pada CI `40421156995`, termasuk snapshot setelah
+force-kill/restart, tetapi restore lewat dialog nyata dan kasus manual lain
+belum dicakup; belum ada runtime native Windows/macOS. Jangan menandai M1/M2
+selesai dulu.
 
 ### 2. Lifecycle recovery yang masih terbatas
 
