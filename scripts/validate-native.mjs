@@ -619,6 +619,97 @@ try {
     await screenshot('09-r02-saved.png');
     skipSessionCleanup = false;
   });
+
+  await step('R03: draf kosong, force-kill, restore tanpa isi lama, dan simpan', async () => {
+    const crashPath = await execute('return window.MarkRust.getPath();');
+    const savedOnDisk = await fs.readFile(crashPath, 'utf8');
+    assert.match(savedOnDisk, /R02-\d+/, 'Dokumen awal R03 harus masih berisi token lama');
+    const initialPids = await findAppPids();
+    assert.equal(initialPids.length, 1, JSON.stringify(initialPids));
+    const firstPid = initialPids[0];
+    skipSessionCleanup = true;
+
+    const emptied = await execute(`
+      const q = window.MarkRust.quill;
+      q.deleteText(0, q.getLength(), 'user');
+      return {
+        markdown: window.MarkRust.getMarkdown(), text: q.getText(),
+        dirty: window.MarkRust.isDirty()
+      };
+    `);
+    assert.equal(emptied.dirty, true, JSON.stringify(emptied));
+    assert.equal(emptied.text.trim(), '', 'Editor harus benar-benar kosong');
+    const emptyMarkdown = emptied.markdown;
+    assert.equal(typeof emptyMarkdown, 'string');
+    assert.equal(emptyMarkdown.trim(), '', 'Markdown canonical harus kosong');
+
+    const beforeDraft = await waitFor('snapshot dengan markdown kosong tersimpan', async () => {
+      const recovery = await invoke('read_recovery');
+      if (recovery === null) return false; // null berarti tidak ada snapshot, bukan draf kosong.
+      const value = JSON.parse(recovery);
+      return value.path === crashPath && value.markdown === emptyMarkdown ? value : false;
+    }, 8000);
+    assert.equal(typeof beforeDraft.markdown, 'string');
+    assert.equal(beforeDraft.markdown, emptyMarkdown);
+    assert.notEqual(beforeDraft.markdown, savedOnDisk);
+
+    assert.equal(await forceKillApp(firstPid), firstPid);
+    await restartDriverAndSession();
+    await waitFor('instance R03 baru setelah restart', () => execute(
+      'return !!(window.MarkRust && window.__TAURI__ && window.MarkRust.isCloseHandlerRegistered());'
+    ));
+    const secondPids = await findAppPids();
+    assert.equal(secondPids.length, 1, JSON.stringify(secondPids));
+    assert.notEqual(secondPids[0], firstPid, 'R03 harus memakai proses OS baru');
+
+    const afterDraft = await waitFor('snapshot kosong terbaca dari instance baru', async () => {
+      const recovery = await invoke('read_recovery');
+      if (recovery === null) return false;
+      const value = JSON.parse(recovery);
+      return value.path === crashPath && value.markdown === emptyMarkdown ? value : false;
+    }, 10000);
+    assert.equal(afterDraft.markdown, emptyMarkdown);
+    const rows = JSON.parse(await invoke('list_recoveries'));
+    assert.equal(rows.length, 1, JSON.stringify(rows));
+    assert.equal(rows[0].path, crashPath);
+    assert.equal(await fs.readFile(crashPath, 'utf8'), savedOnDisk);
+    await screenshot('10-r03-recovery-restart.png');
+    await confirmRestoreDialog({
+      screenshotName: '10b-r03-recovery-dialog.png',
+      windowReportName: 'r03-restore-x11-windows.txt'
+    });
+
+    const restored = await waitFor('draf kosong dipulihkan tanpa isi lama', async () => {
+      const state = await execute(`return {
+        path: window.MarkRust.getPath(), dirty: window.MarkRust.isDirty(),
+        markdown: window.MarkRust.getMarkdown(), text: window.MarkRust.quill.getText(),
+        title: document.title
+      };`);
+      return state.path === crashPath && state.dirty && state.markdown === emptyMarkdown ? state : false;
+    }, 10000);
+    assert.equal(restored.text.trim(), '');
+    assert.doesNotMatch(restored.markdown, /R02-|Draf force-kill|Tambahan native/);
+    assert.match(restored.title, /●/);
+    assert.equal(await fs.readFile(crashPath, 'utf8'), savedOnDisk);
+    await screenshot('11-r03-restored-empty.png');
+
+    const recoveredSave = await executeAsync(`
+      const done = arguments[arguments.length - 1];
+      window.MarkRust.saveDocument(false).then(
+        result => done({ result, dirty: window.MarkRust.isDirty(), path: window.MarkRust.getPath() }),
+        error => done({ error: String(error) })
+      );
+    `);
+    if (recoveredSave?.error) throw new Error(recoveredSave.error);
+    assert.equal(recoveredSave.result, true, JSON.stringify(recoveredSave));
+    assert.equal(recoveredSave.dirty, false, JSON.stringify(recoveredSave));
+    assert.equal(recoveredSave.path, crashPath, JSON.stringify(recoveredSave));
+    assert.equal(await fs.readFile(crashPath, 'utf8'), emptyMarkdown);
+    assert.equal(await invoke('read_document', { path: crashPath }), emptyMarkdown);
+    await waitFor('recovery R03 bersih setelah simpan', async () => (await invoke('read_recovery')) === null, 5000);
+    await screenshot('12-r03-empty-saved.png');
+    skipSessionCleanup = false;
+  });
 } catch (error) {
   failure = error;
   console.error(error.stack || error);
