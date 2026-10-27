@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { getEnv, parseMarkdown } from './harness.js';
 import {
-  escapeHtml, normalizeForQuill, mdToQuillHtml,
+  escapeHtml, normalizeForQuill, mdToQuillHtml, splitFrontmatter,
   plainTextFromMarkdown, documentStats, remoteImageCount, isValidImageUrl
 } from '../ui/core/markdown.js';
 
@@ -10,6 +10,37 @@ const { DOMParser } = getEnv();
 
 test('escapeHtml menetralkan entity dasar', () => {
   assert.equal(escapeHtml('<b>&</b>'), '&lt;b&gt;&amp;&lt;/b&gt;');
+});
+
+test('splitFrontmatter memisahkan YAML sebelum parsing Markdown', () => {
+  const source = '---\r\ntitle: Contoh\r\n...\r\n\r\n# Isi\r\n';
+  assert.deepEqual(splitFrontmatter(source), {
+    frontmatter: '---\ntitle: Contoh\n...',
+    body: '\r\n\r\n# Isi\r\n'
+  });
+});
+
+test('splitFrontmatter tidak menebak bila penutup tidak ada', () => {
+  const source = '---\nbukan front matter\n';
+  assert.deepEqual(splitFrontmatter(source), { frontmatter: null, body: source });
+});
+
+test('front matter di-escape sebagai teks pada blok khusus', () => {
+  const html = mdToQuillHtml('---\ntitle: "<b>bukan HTML</b>"\n---\n\n# Isi\n', parseMarkdown, DOMParser);
+  const doc = new DOMParser().parseFromString('<div id="r">' + html + '</div>', 'text/html');
+  const pre = doc.getElementById('r').querySelector('mr-frontmatter.mr-frontmatter');
+  assert.ok(pre);
+  assert.equal(pre.querySelector('b'), null);
+  assert.match(pre.textContent, /title: "<b>bukan HTML<\/b>"/);
+});
+
+test('kegagalan memetakan token raw mempertahankan seluruh body', () => {
+  const source = '<div class="x">isi</div>\n\nParagraf berikutnya.\n';
+  const html = mdToQuillHtml(source, () => '<p>token tidak tersedia</p>', DOMParser);
+  const doc = new DOMParser().parseFromString('<div id="r">' + html + '</div>', 'text/html');
+  const root = doc.getElementById('r');
+  assert.equal(root.querySelector('.mr-raw-block').textContent, source);
+  assert.ok(!root.textContent.includes('MARKRUSTRAWBLOCK'));
 });
 
 test('normalizeForQuill: <th> jadi <td> dengan align dipertahankan', () => {
@@ -86,6 +117,20 @@ test('documentStats: 13 kata untuk dokumen contoh (bukan 24 seperti stripMarkup 
 test('documentStats: dokumen kosong -> nol', () => {
   assert.deepEqual(documentStats(''), { words: 0, chars: 0 });
   assert.deepEqual(documentStats('   \n\n'), { words: 0, chars: 0 });
+});
+
+test('documentStats tidak menghitung metadata front matter sebagai isi', () => {
+  assert.deepEqual(
+    documentStats('---\ntitle: metadata tidak dihitung\n---\n\nDua kata.\n'),
+    documentStats('Dua kata.\n')
+  );
+});
+
+test('documentStats memperlakukan hard break backslash sebagai whitespace', () => {
+  assert.deepEqual(
+    documentStats('baris satu\\\nbaris dua\n'),
+    documentStats('baris satu  \nbaris dua\n')
+  );
 });
 
 test('documentStats stabil terhadap whitespace tambahan', () => {

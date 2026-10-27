@@ -5,6 +5,9 @@ target/
 # tanpa bundler, tanpa framework — ini hanya untuk `npm test`.
 node_modules/
 
+# Bukti runtime lokal/CI (screenshot dan log driver)
+native-artifacts/
+
 # Berkas OS
 .DS_Store
 Thumbs.db

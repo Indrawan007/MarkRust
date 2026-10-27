@@ -37,6 +37,18 @@ test('hierarki heading 1/2/3 tidak rontok', () => {
   expectExact('# A\n\n## B\n\n### C\n\nteks biasa\n');
 });
 
+test('YAML front matter tidak berubah menjadi hr/heading', () => {
+  expectExact('---\ntitle: Contoh\ndescription: >\n  baris satu\n\n\n  baris dua\ntags: [satu, dua]\n---\n\n# Isi\n');
+});
+
+test('ordered list mempertahankan nomor awal', () => {
+  expectExact('3. tiga\n4. empat\n');
+});
+
+test('judul tautan inline bertahan', () => {
+  expectExact('[tautan](https://example.com "Judul tautan")\n');
+});
+
 test('code block: bahasa DAN indentasi spasi bertahan', () => {
   expectExact('```rust\nfn main() {\n    println!("Hello, MarkRust!");\n}\n```\n');
 });
@@ -93,9 +105,9 @@ test('soft line break di paragraf melebur jadi spasi (sesuai CommonMark)', () =>
   assert.equal(canonical, 'baris satu baris dua\n');
 });
 
-test('hard break (dua spasi) di blockquote tetap dua baris', () => {
+test('hard break di blockquote tetap dua baris dalam quote yang sama', () => {
   const { canonical } = roundTrip('> baris satu  \n> baris dua\n');
-  assert.equal(canonical, '> baris satu\n>\n> baris dua\n');
+  assert.equal(canonical, '> baris satu\\\n> baris dua\n');
 });
 
 test('dua paragraf blockquote dipisahkan baris > kosong', () => {
@@ -103,16 +115,49 @@ test('dua paragraf blockquote dipisahkan baris > kosong', () => {
   assert.equal(canonical, '> paragraf satu\n>\n> paragraf dua\n');
 });
 
-// Batasan yang memang diketahui: dinamisasi di sini supaya kalau perilakunya
-// berubah (misal karena upgrade Quill), tes memberi tahu, bukan diam-diam.
-test('BATASAN: raw HTML kehilangan pembungkusnya (Quill meratakan ke paragraf)', () => {
-  const { canonical } = roundTrip('<div class="kotak">konten html</div>\n');
-  assert.equal(canonical, 'konten html\n');
+// Konstruk yang tidak dapat diedit secara setia oleh Quill dipertahankan
+// sebagai raw read-only, bukan diratakan dan kehilangan strukturnya.
+test('raw HTML blok mempertahankan pembungkus dan atributnya', () => {
+  expectExact('<div class="kotak">konten html</div>\n');
 });
 
-test('BATASAN: hard break di paragraf biasa berubah jadi dua paragraf', () => {
+test('raw HTML details dan Markdown di dalamnya tidak kehilangan struktur', () => {
+  expectExact('<details><summary>Ringkas</summary>\n\nIsi **penting**.\n\n</details>\n');
+});
+
+test('komentar HTML blok dan inline dipertahankan', () => {
+  expectExact('Sebelum\n\n<!-- komentar internal -->\n\nSesudah\n');
+  expectExact('Sebelum <!-- komentar inline --> sesudah\n');
+});
+
+test('inline HTML yang belum didukung dipertahankan sebagai raw', () => {
+  expectExact('Tekan <kbd>Ctrl</kbd> dan <span class="label">ini</span>.\n');
+});
+
+test('list dan nesting di dalam blockquote tidak lagi diratakan', () => {
+  expectExact('> - satu\n> - dua\n');
+  expectExact('> luar\n> > dalam\n');
+});
+
+test('blok raw berdekatan tidak menghasilkan paragraf spasi palsu', () => {
+  const source = '> - satu\n> - dua\n\n<div class="kotak">HTML</div>\n\nIsi\n';
+  const first = roundTrip(source).canonical;
+  assert.equal(first, source);
+  assert.equal(roundTrip(first).canonical, source);
+});
+
+test('raw script menjadi teks read-only, bukan elemen aktif', () => {
+  const source = '<script>window.__tidakBolehJalan = true;</script>\n';
+  const { canonical, quill } = roundTrip(source);
+  assert.equal(canonical, source);
+  assert.equal(quill.root.querySelector('script'), null);
+  assert.match(quill.root.querySelector('.mr-raw-block').textContent, /<script>/);
+});
+
+test('hard break di paragraf tidak lagi berubah menjadi dua paragraf', () => {
   const { canonical } = roundTrip('baris satu  \nbaris dua\n');
-  assert.equal(canonical, 'baris satu\n\nbaris dua\n');
+  assert.equal(canonical, 'baris satu\\\nbaris dua\n');
+  expectExact('baris satu\\\nbaris dua\n');
 });
 
 // ---------------------------------------------------------------------------

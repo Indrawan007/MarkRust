@@ -1,7 +1,9 @@
 # Checklist validasi desktop MarkRust (M2)
 
-Status awal: **BELUM DIJALANKAN di aplikasi native**. Tes jsdom, unit Rust,
-subprocess, dan build CI tidak menggantikan checklist ini.
+Status checklist manual: **BELUM DIJALANKAN di aplikasi native**. Validasi
+WebDriver Linux otomatis kini tersedia sebagai bukti tambahan, tetapi tes jsdom,
+unit Rust, subprocess, build CI, dan smoke WebDriver tidak menggantikan
+checklist ini.
 
 ## Cara mencatat
 
@@ -17,6 +19,54 @@ Gunakan dokumen sintetis dan folder uji, bukan berkas kerja satu-satunya.
 | macOS | — | — | — | BELUM DIUJI |
 | Linux | — | — | — | BELUM DIUJI |
 
+## Bukti otomatis native Linux (tidak mengubah tabel manual)
+
+Commit `ec9f918`, [CI `40437798044`](https://github.com/Indrawan007/MarkRust/actions/runs/40437798044),
+27 Oktober 2026: langkah **Validasi WebView Tauri native (Linux/Xvfb)** dan
+**Validasi dua proses Tauri native (Linux/Xvfb)** PASS pada runner
+`ubuntu-24.04`, binary Tauri + WebKitGTK melalui `tauri-driver` 2.1.0 dan
+`WebKitWebDriver`. Versi WebKit mengikuti image runner dan tidak dicatat sebagai
+versi manual yang sudah diverifikasi.
+
+| ID otomatis | Cakupan yang benar-benar dijalankan | Hasil / bukti |
+|---|---|---|
+| A01 | Boot binary Tauri; API `window.__TAURI__`, editor, statistik, dan close handler tersedia | PASS; screenshot `01-native-boot.png` |
+| A02 | Front matter, raw block, hard break, script raw tidak aktif, dan `Ctrl+Shift+M` bolak-balik | PASS; screenshot `02-native-fidelity.png` |
+| A03 | Buka → edit → snapshot recovery disk → simpan → baca ulang pada path Unicode/spasi melalui IPC Rust | PASS; screenshot `03-native-saved.png` |
+| A04 | `SIGKILL` → proses baru → dialog GTK nyata dijawab Yes → isi/path/dirty pulih → file belum berubah → hasil restore disimpan dan recovery dibersihkan | PASS; screenshot `04b-native-recovery-dialog.png`, `05-native-restored.png`, `06-native-recovery-saved.png` |
+| A05 | Dua proses/PID dengan dokumen A/B → simpan A tanpa menghapus snapshot B → kill/restart B → restore B melalui dialog sementara editor dan file A tetap utuh | PASS; screenshot `multi-01-two-instances.png`, `multi-03-b-recovery-dialog.png`, `multi-04-b-restored-a-intact.png` |
+| A06 | R02: token user-source tiap 40 ms selama >3,6 detik dengan jeda <700 ms → snapshot saat mengetik → kill/restart → restore sama dengan snapshot → file belum berubah → simpan | PASS; `r02-measurement.json`, screenshot `07b-r02-recovery-dialog.png`, `08-r02-restored.png`, `09-r02-saved.png` |
+| A07 | R03: hapus seluruh isi → snapshot valid dengan Markdown kosong → kill/restart → dialog restore menghasilkan editor kosong tanpa marker lama → file lama utuh sebelum simpan → simpan kosong dan recovery bersih | PASS; screenshot `10b-r03-recovery-dialog.png`, `11-r03-restored-empty.png`, `12-r03-empty-saved.png` |
+| A08 | R05: dua stale session → picker dua path → pilih kandidat yang tidak diadopsi → `select_recovery` + GTK Yes → hanya pilihan masuk editor; kandidat lain dan file asli tetap utuh | PASS; `r05-evidence.json`, screenshot `r05-01-picker.png`, `r05-02-restore-dialog.png`, `r05-03-selected-restored.png` |
+| A09 | R05: kedua kandidat stale lagi → picker kedua → klik Nanti saja → editor tidak berubah, tidak ada GTK restore, seluruh file snapshot identik dan dua kandidat tetap terdaftar | PASS; `r05-evidence.json`, screenshot `r05-04-picker-before-defer.png`, `r05-05-deferred.png` |
+| A10 | R06: tiga stale session A/B/C → dua penantang mengadopsi C/B dan sama-sama mengklik A → tepat satu lock + dialog GTK; yang kalah error tanpa mengubah editor/path/dirty; pemenang restore A; snapshot awal dan file asli utuh | PASS; `r06-evidence.json`, screenshot `r06-01-first-picker.png` sampai `r06-05-loser.png` |
+| A11 | R07: dua versi → kill → JSON terbaru dirusak → restart → versi sebelumnya dibaca/dipulihkan melalui GTK; snapshot awal tetap identik setelah restore dan write berikutnya; file asli utuh | PASS; `r07-evidence.json`, screenshot `13-r07-fallback-restart.png`, `13b-r07-fallback-dialog.png`, `14-r07-fallback-restored.png` |
+| A12 | R07: semua versi dirusak → restart → indikator error terlihat, kandidat kosong, tidak ada picker/dialog, path/dirty aman; seluruh file corrupt dan file asli tetap identik | PASS; `r07-evidence.json`, screenshot `15-r07-all-corrupt.png` |
+| A13 | R08: dua sesi A/B + sparse filler tepat 256 MiB → write A ditolak dengan error, editor/dirty dan seluruh snapshot/file asli tetap; filler dilepas → flush berhasil, error hilang, dirty tetap, B identik | PASS; `r08-evidence.json`, screenshot `r08-01-quota-rejected.png`, `r08-02-write-resumed.png` |
+| A14 | R09: picker v1+v2 → pilih `legacy` → GTK restore → write tetap di v1 tanpa duplikasi v2 → save hanya membersihkan legacy; snapshot/file v2 lain tetap dan kandidatnya masih terdaftar | PASS; `r09-evidence.json`, screenshot `r09-01-v1-and-v2-picker.png` sampai `r09-04-v1-saved-v2-kept.png` |
+| A15 | R09: seed localStorage lama + reload saat sesi B live/terkunci → GTK restore A → satu kandidat disk → save membersihkan hanya disk/localStorage A; editor/snapshot/file B tetap utuh | PASS; `r09-evidence.json`, screenshot `r09-05-localstorage-dialog.png`, `r09-06-localstorage-restored.png`, `r09-07-localstorage-saved-other-kept.png` |
+| A16 | P01: server HTTPS lokal mencatat gambar Markdown/inline/`//host`, raw `srcset`, dan CSS `url()` → nol request sebelum izin → setelah Muat gambar hanya path visual yang diizinkan; raw/srcset/CSS tetap tanpa request | PASS; `p01-network.json`, screenshot `p01-01-blocked-no-requests.png`, `p01-02-authorized-requests-only.png` |
+
+Artefak run: `native-webview-linux` (screenshot WebView/X11 + log driver,
+retensi 7 hari). Pada skenario yang membuka dokumen, hanya pemilihan path
+pada dialog Buka yang distub; perintah `read_document`, `write_document`,
+recovery/`select_recovery`, serializer, picker/dialog restore, dan state UI
+nyata. Screenshot serta isi `r02-measurement.json`, `r05-evidence.json`,
+`r06-evidence.json`, `r07-evidence.json`, `r08-evidence.json`,
+`r09-evidence.json`, dan `p01-network.json` tidak diinspeksi di sandbox karena
+host unduhan artefak eksternal tidak dapat diakses; keberhasilan A01–A16 berasal
+dari assertion CI. Selisih token R02 adalah pengukuran sampel, bukan klaim nol
+kehilangan. Pada A16 hanya sesi automation yang menerima sertifikat self-signed
+lokal; CSP/TLS produksi tidak diubah. Run `40437382967` sebelumnya FAIL karena
+blot dasar memicu dua request sebelum izin; perbaikan `ec9f918` adalah bagian
+dari bukti run final, bukan penghapusan riwayat kegagalan.
+
+Bukti ini **tidak** menandai F01/F02/F09/R01/R02/R03/R04/R05/R06/R07/R08/R09/P01
+atau kasus manual lain sebagai PASS. R01–R09 dan P01 otomatis hanya lulus pada
+Linux/WebKitGTK; interaksi manual lintas OS, window controls, network inspector,
+installer, serta runtime
+native Windows/macOS masih harus diuji terpisah.
+
 ## Matriks kasus wajib (ulangi pada tiap OS)
 
 | ID | Langkah | Hasil yang diharapkan | Status / bukti |
@@ -29,6 +79,7 @@ Gunakan dokumen sintetis dan folder uji, bukan berkas kerja satu-satunya.
 | F06 | Ctrl/Cmd+N/O/S/Shift+S/Shift+M, menu native | Satu aksi per shortcut; tidak dobel; shortcut OS yang tak sampai ke app dicatat | BELUM DIUJI |
 | F07 | Drop .md/.txt valid, drop berkas tidak didukung, drop sambil mengedit | Input valid aman; tidak menimpa perubahan yang lebih baru | BELUM DIUJI |
 | F08 | Buka file mendekati 10 MB dan di atas batas | Batas baca berlaku, UI tetap dapat digunakan | BELUM DIUJI |
+| F09 | Buka raw HTML/komentar, list/nested blockquote, dan hard break; toggle lalu simpan | Struktur tetap, raw read-only tidak dieksekusi, tidak ada paragraf spasi/token palsu | BELUM DIUJI |
 | C01 | Tutup dokumen bersih melalui X/Alt+F4 | Tidak bertanya; proses berakhir sebagaimana diharapkan | BELUM DIUJI |
 | C02 | Tutup dokumen kotor, pilih simpan, lalu batal/gagal dialog simpan | Tetap terbuka saat gagal/batal; tulisan tidak hilang | BELUM DIUJI |
 | C03 | Tutup kotor tanpa simpan setelah backup sukses, buka lagi | Draf ditawarkan dan dapat dipulihkan | BELUM DIUJI |

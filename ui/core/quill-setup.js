@@ -8,6 +8,127 @@ import {
 } from './image-policy.js';
 
 const registered = new WeakSet();
+const frontmatterRegistered = new WeakSet();
+const metadataRegistered = new WeakSet();
+const rawContentRegistered = new WeakSet();
+
+/**
+ * YAML front matter disimpan sebagai satu blok embed, bukan dikirim ke marked.
+ * Dengan begitu pembuka/penutup serta isi YAML tidak berubah menjadi <hr>,
+ * heading, atau paragraf. Blok sengaja read-only di WYSIWYG; isinya dapat
+ * diedit melalui mode Markdown.
+ */
+export function registerFrontmatterBlot(Quill) {
+  if (frontmatterRegistered.has(Quill)) return;
+  const BlockEmbed = Quill.import('blots/block/embed');
+  class FrontmatterBlot extends BlockEmbed {
+    static blotName = 'frontmatter';
+    // Tag internal khusus: PRE saja akan merebut code block Quill.
+    static tagName = 'MR-FRONTMATTER';
+    static className = 'mr-frontmatter';
+
+    static create(value) {
+      const node = super.create(value);
+      node.setAttribute('contenteditable', 'false');
+      node.textContent = String(value == null ? '' : value);
+      return node;
+    }
+
+    static value(node) {
+      return node.textContent || '';
+    }
+  }
+  Quill.register(FrontmatterBlot, true);
+  frontmatterRegistered.add(Quill);
+}
+
+/** Atribut asli Markdown yang tidak disediakan Quill secara bawaan. */
+export function registerMarkdownMetadata(Quill) {
+  if (metadataRegistered.has(Quill)) return;
+  const Parchment = Quill.import('parchment');
+  Quill.register(new Parchment.Attributor(
+    'list-start', 'data-list-start', { scope: Parchment.Scope.BLOCK }
+  ), true);
+  Quill.register(new Parchment.Attributor(
+    'link-title', 'title', { scope: Parchment.Scope.INLINE }
+  ), true);
+  metadataRegistered.add(Quill);
+}
+
+/**
+ * Salin metadata dari HTML hasil marked ke Delta. Matcher LI diperlukan karena
+ * pada matcher OL seluruh item masih tergabung dalam satu operasi multiline.
+ */
+export function registerMarkdownMetadataMatchers(quill) {
+  quill.clipboard.addMatcher('li', function (node, delta) {
+    const parent = node.parentElement;
+    if (!parent || parent.tagName !== 'OL' || node !== parent.firstElementChild ||
+        !parent.hasAttribute('start')) return delta;
+    const start = Number(parent.getAttribute('start'));
+    if (!Number.isSafeInteger(start) || start < 0) return delta;
+    for (const op of delta.ops) {
+      if (typeof op.insert === 'string' && op.insert.includes('\n')) {
+        op.attributes = Object.assign({}, op.attributes, { 'list-start': String(start) });
+        break;
+      }
+    }
+    return delta;
+  });
+
+  quill.clipboard.addMatcher('a', function (node, delta) {
+    const title = node.getAttribute('title');
+    if (title === null) return delta;
+    for (const op of delta.ops) {
+      if (op.attributes && op.attributes.link) {
+        op.attributes['link-title'] = title;
+      }
+    }
+    return delta;
+  });
+}
+
+/** Blok raw read-only dan hard break inline yang tidak dimiliki Quill. */
+export function registerRawContentBlots(Quill) {
+  if (rawContentRegistered.has(Quill)) return;
+  const BlockEmbed = Quill.import('blots/block/embed');
+  const Parchment = Quill.import('parchment');
+
+  class RawMarkdownBlot extends BlockEmbed {
+    static blotName = 'rawblock';
+    static tagName = 'MR-RAW-BLOCK';
+    static className = 'mr-raw-block';
+
+    static create(value) {
+      const node = super.create(value);
+      node.setAttribute('contenteditable', 'false');
+      node.textContent = String(value == null ? '' : value);
+      return node;
+    }
+
+    static value(node) {
+      return node.textContent || '';
+    }
+  }
+
+  class HardBreakBlot extends Parchment.EmbedBlot {
+    static blotName = 'hardbreak';
+    static tagName = 'MR-HARD-BREAK';
+
+    static create() {
+      const node = super.create();
+      node.setAttribute('contenteditable', 'false');
+      return node;
+    }
+
+    static value() {
+      return true;
+    }
+  }
+
+  Quill.register(RawMarkdownBlot, true);
+  Quill.register(HardBreakBlot, true);
+  rawContentRegistered.add(Quill);
+}
 
 /** Quill 2.0.3 tidak menyertakan blot <hr>. Harus ES class: Parchment menolak
  *  membuat blot dari fungsi konstruktor biasa. */
@@ -36,9 +157,9 @@ const safeImageRegistered = new WeakSet();
 /**
  * Ganti blot `image` bawaan Quill dengan versi yang menahan gambar jarak jauh.
  *
- * Kuncinya: `create()` menulis URL asli ke atribut `data-mr-src` dan mengganti
- * `src` dengan placeholder data-URI, sedangkan `value()` membaca kembali
- * `data-mr-src` lebih dulu. Akibatnya model data (Delta) TETAP berisi URL asli
+ * Kuncinya: `create()` memberi placeholder ke blot dasar sejak awal dan hanya
+ * menulis URL asli ke atribut inert `data-mr-src`, sedangkan `value()` membaca
+ * kembali atribut itu lebih dulu. Akibatnya model data (Delta) TETAP berisi URL asli
  * —serializer Markdown tidak rusak— sementara DOM tidak pernah memuat
  * sumber jaringan sampai pengguna mengizinkannya.
  *
@@ -54,12 +175,13 @@ export function registerSafeImageBlot(Quill) {
     static tagName = 'IMG';
 
     static create(value) {
-      const node = super.create(value);
       const url = String(value == null ? '' : value);
-      if (shouldBlockRemoteImage(url)) {
-        node.setAttribute('data-mr-src', url);
-        node.setAttribute('src', IMAGE_PLACEHOLDER);
-      }
+      const blocked = shouldBlockRemoteImage(url);
+      // WebKitGTK dapat mulai fetch dari img yang masih terlepas di dalam
+      // super.create(). Jangan pernah berikan URL terblokir ke blot dasar;
+      // mengganti src sesudahnya sudah terlambat dan membocorkan request.
+      const node = super.create(blocked ? IMAGE_PLACEHOLDER : value);
+      if (blocked) node.setAttribute('data-mr-src', url);
       return node;
     }
 

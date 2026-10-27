@@ -1,5 +1,309 @@
 # Laporan status & handoff MarkRust
 
+## Update 27 Oktober 2026 — M3: P01 jaringan native dan fix blot
+
+- Commit tervalidasi `ec9f918`, CI `40437798044`: **8/8 kelompok native tunggal
+  dan 10/10 multi-instance Linux/WebKitGTK lulus**, termasuk P01. Harness awal
+  berada pada `0389622`; koreksi capability pada `2813550`; perbaikan produksi
+  dan regresi unit pada `ec9f918`.
+- Server HTTPS lokal mencatat request nyata untuk gambar Markdown/inline,
+  protocol-relative `//host`, raw `srcset`, dan CSS `url()`. Hanya sesi P01 yang
+  memakai `acceptInsecureCerts` untuk sertifikat self-signed lokal; CSP dan
+  kebijakan TLS produksi tidak diubah. Hasil akhir: nol request sebelum izin,
+  lalu kontrol positif hanya memuat path gambar visual yang diizinkan. Blok raw,
+  srcset, dan CSS tidak menghasilkan request.
+- Run `40436970374` berhenti pada setup P01 karena harness salah mengirim
+  `acceptInsecureCertificates`; WebKitWebDriver menerima nama standar
+  `acceptInsecureCerts`. Ini kegagalan harness, bukan aplikasi.
+- Run `40437382967` kemudian menemukan **bug privasi nyata**: GET `/markdown.png`
+  dan `/inline.png` terjadi sebelum izin. `SafeImageBlot.create()` dahulu memanggil
+  `super.create(value)` dengan URL remote, dan WebKitGTK mulai fetch sebelum `src`
+  sempat diganti placeholder. Kini blot dasar langsung menerima placeholder untuk
+  URL terblokir; URL asli hanya disimpan pada `data-mr-src` dan tetap round-trip.
+- Tes unit baru membuktikan base class tidak pernah menerima URL terblokir,
+  sedangkan URL yang diizinkan tetap diteruskan. **Node kini 173 tes**; seluruh
+  173 tes, 4 kelompok Chromium, dan build/test Rust tiga OS lulus pada run final.
+- `p01-network.json` dan dua screenshot tersimpan pada artefak
+  `native-webview-linux` ID `12705390294`; isi visual/JSON belum diinspeksi dari
+  sandbox karena host unduhan eksternal tidak dapat diakses. Kelulusan berasal
+  dari assertion CI dan log request server.
+- **P01 manual tetap BELUM DIUJI**. R01–R09 manual, P02–P03, checklist tiga OS,
+  runtime Windows/macOS native, installer, dan gerbang M1/M2/M3 belum ditutup.
+
+## Update 27 Oktober 2026 — M2: R09 migrasi v1/localStorage
+
+- Commit `3d40737`, CI `40435271501`: **8/8 kelompok native tunggal dan 9/9
+  kelompok multi-instance Linux/WebKitGTK lulus**. Hanya harness berubah; kode
+  produksi tidak diubah.
+- Fixture `recovery-v1` ditawarkan bersama satu draf v2 stale. Kandidat `legacy`
+  dipilih melalui picker nyata dan dipulihkan lewat GTK. Snapshot pasca-restore
+  tetap berada di v1 tanpa duplikasi ke v2; save membersihkan hanya legacy.
+  Snapshot dan file asli draf v2 lain tetap identik, serta kandidatnya masih
+  terdaftar setelah save.
+- Pada jalur localStorage, proses B tetap live dan terkunci sementara A menerima
+  draf localStorage lama lalu me-reload WebView. Dialog GTK memulihkan isi/path/
+  dirty A. Hanya satu kandidat disk A muncul setelah write; save membersihkan
+  disk dan localStorage milik A, sedangkan editor/snapshot/file B tetap utuh.
+- `r09-evidence.json` serta tujuh screenshot picker/dialog/hasil migrasi tersimpan
+  pada artefak `native-webview-linux` ID `12704016446`; isi visual/JSON belum
+  diinspeksi dari sandbox karena host unduhan eksternal tidak dapat diakses.
+  Kelulusan berasal dari assertion CI.
+- Node 172 tes, Chromium 4 kelompok, dan build/test Rust tiga OS juga lulus;
+  bundel rilis skipped. Cakupan otomatis **R01–R09 pada Linux/WebKitGTK lengkap**,
+  tetapi **R09 dan R01–R08 manual tetap BELUM DIUJI** serta M1/M2 belum ditutup.
+  Checklist tiga OS, runtime Windows/macOS native, network inspector native, dan
+  installer tetap terbuka.
+
+## Update 27 Oktober 2026 — M2: R08 kuota total recovery
+
+- Commit `b689cb0`, CI `40434261611`: **8/8 kelompok native tunggal dan 7/7
+  kelompok multi-instance Linux/WebKitGTK lulus**. Hanya harness berubah; kode
+  produksi tidak diubah.
+- Dua proses membuat snapshot A/B pada session berbeda, lalu B dimatikan. Sparse
+  file `quota-fill.tmp` mengisi ukuran logis recovery tepat sampai 268.435.456
+  byte menurut penghitungan file Rust, tanpa menulis 256 MiB blok fisik.
+- Edit baru A memicu `write_recovery` nyata yang ditolak pada batas tersebut.
+  Indikator dan pesan kuota terlihat; editor/path/dirty tetap, snapshot lama tidak
+  memuat edit yang ditolak, dan tidak ada file recovery baru atau sisa. Semua
+  snapshot A/B serta kedua file asli tetap identik.
+- Setelah filler dilepas, `flushDraft()` berhasil menulis satu snapshot baru A,
+  indikator/title error dibersihkan, dan dirty tetap aktif. Snapshot B dan kedua
+  file asli tetap identik; backup berhasil tidak dianggap sebagai save.
+- `r08-evidence.json` serta screenshot penolakan/pemulihan write tersimpan pada
+  artefak `native-webview-linux` ID `12703282961`; isi visual/JSON belum
+  diinspeksi dari sandbox karena host unduhan eksternal tidak dapat diakses.
+  Kelulusan berasal dari assertion CI.
+- Node 172 tes, Chromium 4 kelompok, dan build/test Rust tiga OS juga lulus;
+  bundel rilis skipped. **R08 manual tetap BELUM DIUJI**; R01–R07 manual dan
+  M1/M2 belum ditutup. R09, checklist tiga OS, runtime Windows/macOS native,
+  network inspector native, dan installer tetap terbuka.
+
+## Update 27 Oktober 2026 — M2: R07 snapshot rusak dan fallback
+
+- Commit `a4293ed`, CI `40432859739`: **8/8 kelompok native tunggal dan 6/6
+  kelompok multi-instance Linux/WebKitGTK lulus**. Hanya harness berubah; kode
+  produksi tidak diubah.
+- Dua snapshot berbeda dibuat, proses dimatikan, lalu file JSON terbaru dirusak
+  dari sisi host. Instance baru membaca dan menawarkan versi sebelumnya; dialog
+  GTK memulihkan Markdown/path/dirty versi tersebut tanpa marker versi terbaru.
+  File asli tetap identik.
+- Snapshot sebelumnya dan snapshot corrupt tetap ada serta byte-identik setelah
+  pembacaan, restore, dan selesainya penulisan snapshot pasca-restore. Ini juga
+  memeriksa bahwa cleanup setelah write tidak menghapus bukti corruption.
+- Pada skenario kedua, semua versi dirusak sebelum restart. Indikator kegagalan
+  recovery terlihat, daftar kandidat kosong, tidak ada picker/dialog restore,
+  path tetap `null`, dan dirty tetap false. Semua file corrupt dan file asli
+  tetap identik setelah pemeriksaan baca ulang.
+- `r07-evidence.json` serta screenshot fallback/dialog/semua-rusak tersimpan
+  pada artefak `native-webview-linux` ID `12702409952`; isi visual/JSON belum
+  diinspeksi dari sandbox karena host unduhan eksternal tidak dapat diakses.
+  Kelulusan berasal dari assertion CI.
+- Node 172 tes, Chromium 4 kelompok, dan build/test Rust tiga OS juga lulus;
+  bundel rilis skipped. **R07 manual tetap BELUM DIUJI**; R01–R06 manual dan
+  M1/M2 belum ditutup. R08–R09, checklist tiga OS, runtime Windows/macOS native,
+  network inspector native, dan installer tetap terbuka.
+
+## Update 27 Oktober 2026 — M2: R06 race lock recovery
+
+- Commit `a6e3aac`, CI `40432064383`: **6/6 kelompok native tunggal dan 6/6
+  kelompok multi-instance Linux/WebKitGTK lulus**. Hanya harness berubah; kode
+  produksi tidak diubah.
+- Tiga stale session A/B/C dibuat melalui tiga aplikasi nyata. Dua penantang baru
+  mengadopsi C lalu B, sehingga keduanya tetap melihat kandidat bersama A pada
+  picker. Kedua WebDriver kemudian mengklik A secara konkuren.
+- Pemenang ditentukan dari state hasil race, bukan diasumsikan. Tepat satu
+  instance memperoleh lock kandidat A dan membuka dialog restore GTK. Instance
+  yang kalah menampilkan indikator kegagalan recovery, tidak membuka restore
+  palsu, serta mempertahankan editor/path/dirty seperti sebelum race.
+- Setelah GTK Yes, pemenang memulihkan Markdown/path/dirty A tanpa marker B/C.
+  Ketiga snapshot awal tetap ada dan identik; file tambahan hanya boleh muncul
+  pada session A yang dimenangkan. Ketiga file asli tetap identik.
+- `r06-evidence.json` serta screenshot picker/dialog/pemenang/kalah tersimpan
+  pada artefak `native-webview-linux` ID `12702652548`; isi visual/JSON belum
+  diinspeksi dari sandbox karena host unduhan eksternal tidak dapat diakses.
+  Kelulusan berasal dari assertion CI.
+- Node 172 tes, Chromium 4 kelompok, dan build/test Rust tiga OS juga lulus;
+  bundel rilis skipped. **R06 manual tetap BELUM DIUJI**; R01–R05 manual dan
+  M1/M2 belum ditutup. R07–R09, checklist tiga OS, runtime Windows/macOS native,
+  network inspector native, dan installer tetap terbuka.
+
+## Update 27 Oktober 2026 — M2: R05 picker beberapa recovery
+
+- Commit `a306044`, CI `40431135910`: **6/6 kelompok native tunggal dan 5/5
+  kelompok multi-instance Linux/WebKitGTK lulus**. Hanya harness berubah; kode
+  produksi tidak diubah.
+- Dua aplikasi hidup bersamaan membuat snapshot pada session berbeda, kemudian
+  keduanya di-`SIGKILL`. Proses berikutnya menampilkan picker HTML dengan dua
+  path. Harness memilih kandidat yang tidak otomatis diadopsi sehingga
+  `select_recovery` dan perpindahan lock nyata ikut diuji.
+- Setelah dialog GTK dijawab Yes, hanya marker/path kandidat pilihan yang masuk
+  editor dengan dirty aktif. Marker kandidat lain tidak masuk, file asli kedua
+  dokumen tidak berubah, dan seluruh file snapshot kandidat yang tidak dipilih
+  tetap identik.
+- Kedua kandidat dibuat stale lagi, lalu **Nanti saja** dipilih melalui tombol
+  WebDriver pada picker kedua. Editor tetap pada dokumen awal, tidak ada dialog
+  GTK restore, dua kandidat tetap terdaftar, dan seluruh file snapshot sebelum/
+  sesudah penundaan identik.
+- `r05-evidence.json` serta screenshot picker/restore tersimpan pada artefak
+  `native-webview-linux` ID `12702296185`; isi visual/JSON belum diinspeksi dari
+  sandbox. Kelulusan berasal dari assertion CI.
+- Node 172 tes, Chromium 4 kelompok, dan build/test Rust tiga OS juga lulus;
+  bundel rilis skipped. **R05 manual tetap BELUM DIUJI**; R01–R04 manual dan
+  M1/M2 belum ditutup. R06, checklist tiga OS, runtime Windows/macOS native,
+  network inspector native, dan installer tetap terbuka.
+
+## Update 27 Oktober 2026 — M2: R03 draf kosong native
+
+- Commit `5cf01fb`, CI `40429916613`: **6/6 kelompok native tunggal dan 3/3
+  langkah multi-instance Linux/WebKitGTK lulus**. Hanya harness berubah; kode
+  produksi tidak diubah.
+- Dokumen yang masih berisi token R02 dihapus seluruhnya melalui Quill dengan
+  sumber `user`. Harness membedakan `null` (tidak ada snapshot) dari JSON valid
+  dengan `markdown` kosong, lalu membuktikan snapshot kosong memiliki path yang
+  benar dan tidak sama dengan isi file lama.
+- Setelah `SIGKILL`/restart, dialog GTK nyata dijawab Yes. Editor dan Markdown
+  canonical tetap kosong, marker lama tidak muncul, path/dirty benar, dan file
+  asli masih berisi token lama sebelum simpan.
+- Simpan hasil restore menuliskan Markdown kosong melalui Rust, `read_document`
+  membacanya kembali dengan identik, dan recovery dibersihkan. Ini membuktikan
+  penghapusan isi tidak digantikan oleh snapshot versi lama pada alur yang diuji.
+- Node 172 tes, Chromium 4 kelompok, dan build/test Rust tiga OS juga lulus;
+  bundel rilis skipped. Artefak `native-webview-linux` ID `12700589516`
+  tersedia, tetapi isi visualnya belum diinspeksi dari sandbox.
+- **R03 manual tetap BELUM DIUJI**; R01/R02/R04 manual dan M1/M2 juga belum
+  ditutup. Checklist tiga OS, native Windows/macOS runtime, network inspector
+  native, dan installer tetap terbuka.
+
+## Update 27 Oktober 2026 — M2: R02 pengetikan kontinu native
+
+- Commit tervalidasi `446afb6`, CI `40427913703`: **5/5 kelompok native tunggal
+  dan 3/3 langkah multi-instance Linux/WebKitGTK lulus**. Harness R02 berada
+  pada `531b44c`; tidak ada kode produksi yang diubah untuk increment ini.
+- Token user-source dimasukkan setiap 40 ms selama lebih dari 3,6 detik tanpa
+  menghentikan interval saat membaca snapshot. Assertion memastikan sedikitnya
+  50 token, jeda antar-token maksimum di bawah 700 ms, dan snapshot muncul saat
+  pengetikan masih berlangsung.
+- Setelah `SIGKILL` dan proses baru, dialog GTK nyata dijawab Yes. Isi restore
+  sama persis dengan snapshot pada sampel sebelum kill, path/dirty benar, dan
+  file asli tidak berubah sebelum simpan. Hasil restore kemudian disimpan dan
+  recovery dibersihkan.
+- `r02-measurement.json` mencatat waktu snapshot, sequence editor/snapshot, jeda
+  maksimum, dan selisih token pada sampel sebelum kill. Angka artefak belum
+  diinspeksi dari sandbox; tidak ada klaim nol kehilangan atau jumlah pasti.
+- Run `40425531548` dan `40426788056` berhenti pada apt sebelum native. Pemanggilan
+  apt kemudian dibatasi 90 detik dengan maksimal tiga percobaan; run
+  `40427913703` lulus. Hambatan tersebut bukan kegagalan aplikasi/R02.
+- Node 172 tes, Chromium 4 kelompok, dan build/test Rust tiga OS juga lulus;
+  bundel rilis skipped. Artefak `native-webview-linux` ID `12700342570`
+  tersedia, tetapi isi visual dan JSON-nya belum diinspeksi dari sandbox.
+- **R02 manual tetap BELUM DIUJI**; R01/R04 manual dan M1/M2 juga belum ditutup.
+  Checklist tiga OS, native Windows/macOS runtime, network inspector native,
+  dan installer tetap terbuka.
+
+## Update 27 Oktober 2026 — M2: dialog restore dan dua proses native
+
+- Commit tervalidasi `dbc0b6d`, CI `40424654018`: **4/4 kelompok native tunggal
+  dan 3/3 langkah multi-instance Linux/WebKitGTK lulus**. Implementasi dialog
+  berada pada `4ff4996`; harness dua proses pada `cbb726a`.
+- A04 kini menjawab dialog GTK **Pulihkan draf** yang nyata melalui `xdotool`
+  (Alt+Y), lalu membuktikan Markdown/path/dirty pulih. File asli tetap identik
+  sebelum simpan; `saveDocument(false)` kemudian menuliskan hasil restore dan
+  membersihkan recovery. Dialog restore tidak distub.
+- R04 menjalankan A dan B sebagai dua proses dengan PID berbeda dan dokumen
+  berbeda. Simpan A membersihkan hanya recovery A; snapshot B tetap ada. Setelah
+  B di-`SIGKILL`, proses pengganti memulihkan B melalui dialog sementara A tetap
+  berjalan. Editor/file A tidak berubah dan hasil restore B berhasil disimpan.
+- Hanya pemilihan path pada dialog Buka yang distub. IPC file Rust, recovery,
+  serializer, dialog restore, dan state UI tetap nyata.
+- Run `40423318194` sebelumnya berhenti pada apt setelah 10 menit dan tidak
+  menjalankan native. Batas timeout HTTP/HTTPS serta retry ditambahkan; run
+  `40424654018` kemudian lulus. Ini dicatat sebagai hambatan infrastruktur,
+  bukan kegagalan aplikasi.
+- Node 172 tes, Chromium 4 kelompok, serta build/test Rust Linux, Windows, dan
+  macOS juga lulus pada run `40424654018`; bundel rilis skipped pada push branch.
+  Artefak `native-webview-linux` ID `12699665120` tersedia, tetapi isi visualnya
+  belum diinspeksi dari sandbox.
+- **R01/R04 manual tetap BELUM DIUJI** dan M1/M2 belum ditutup. Checklist manual
+  tiga OS, native Windows/macOS runtime, network inspector native, dan installer
+  masih terbuka.
+
+## Update 26 Oktober 2026 — M2: force-kill/restart native
+
+- Commit `c1e7372`, CI `40421156995`: **4/4 kelompok native Linux/WebKitGTK
+  lulus**. Kelompok baru mematikan proses MarkRust pertama dengan `SIGKILL`,
+  menjalankan driver dan proses baru dengan direktori data yang sama, lalu
+  membuktikan PID berbeda dan snapshot terbaru tetap dapat dibaca.
+- Path dan Markdown snapshot identik, tepat satu kandidat recovery terlihat,
+  dan file asli tetap identik (tidak ada autosave). Dialog restore tidak
+  dijawab, jadi ini bukan bukti restore GUI penuh dan **R01 manual belum PASS**.
+- Dua run pada `ubuntu-latest` tidak menjalankan native karena apt macet; run
+  `40419832339` berakhir timeout pada dependensi setelah 10 menit. Setup menjadi
+  non-interactive dan build/native/bundel Linux dipin ke `ubuntu-24.04`; run
+  `40421156995` kemudian lulus. Ini tercatat sebagai masalah infrastruktur CI,
+  bukan kegagalan aplikasi.
+- Node 172 tes, Chromium 4 kelompok, dan build/test Rust pada tiga OS juga
+  lulus pada run tersebut. Artefak `native-webview-linux` memuat empat screenshot
+  dan log dua generasi driver; screenshot tetap belum dapat diinspeksi dari
+  sandbox karena host unduhan eksternal.
+- M2 tetap terbuka: restore lewat dialog nyata, dua proses bersamaan, checklist
+  manual, native Windows/macOS, dan installer belum diuji.
+
+## Update 26 Oktober 2026 — M2: WebView native Linux otomatis
+
+- Commit `809f22f`, CI `40414344817`: langkah **Validasi WebView Tauri native
+  (Linux/Xvfb)** lulus menggunakan binary Tauri, `tauri-driver` 2.1.0, dan
+  `WebKitWebDriver`; bukan Chromium/jsdom.
+- Tiga kelompok lulus: boot WebKitGTK + API Tauri + close handler; raw block /
+  hard break + `Ctrl+Shift+M`; serta buka → edit → recovery disk → simpan pada
+  path Unicode dan spasi melalui IPC Rust.
+- Hanya pemilihan path dialog Buka yang distub. Dialog manual, force-kill, dua
+  proses desktop, installer, dan native Windows/macOS belum diuji. M2 tetap
+  terbuka dan seluruh status checklist manual tetap **BELUM DIUJI**.
+- Artefak CI `native-webview-linux` berisi screenshot dan log driver (retensi 7
+  hari). Screenshot tidak diinspeksi di sandbox karena unduhan artefak memakai
+  host penyimpanan eksternal yang tidak dapat diakses dari environment ini.
+- Run yang sama juga lulus untuk 172 tes Node, 4 kelompok Chromium, serta
+  build/test Rust Linux, Windows, dan macOS. Bundel rilis tetap dilewati pada
+  push branch biasa.
+
+## Update 26 Oktober 2026 — fidelity Markdown tahap 1B
+
+- Raw HTML/komentar, inline HTML yang atributnya belum didukung, serta
+  list/nesting/heading di dalam blockquote dipertahankan sebagai raw read-only;
+  tidak lagi diratakan atau dibuang. Isi raw tidak menjadi elemen HTML aktif.
+- Hard break memiliki blot inline sendiri dan diserialkan sebagai backslash +
+  newline (atau `<br>` di tabel), bukan diubah menjadi paragraf baru.
+- Token proteksi raw memiliki fail-safe whole-document agar kegagalan pemetaan
+  tidak menyimpan token atau membuang isi. Whitespace antar-embed diuji agar
+  tidak menghasilkan paragraf spasi palsu.
+- Verifikasi lokal terakhir: **172 tests, 172 pass, 0 fail**;
+  `git diff --check` bersih. GUI/Rust native tetap belum diuji.
+
+## Update 26 Oktober 2026 — validasi runtime Chromium
+
+- `npm run test:browser` lulus pada **Chromium 153.0.8010.0**: boot dan viewport
+  minimum; front matter/raw block/hard break + `Ctrl+Shift+M`; buka file →
+  ketik → draf recovery → download; serta nol request gambar remote sebelum
+  izin dan hanya satu request yang diizinkan sesudahnya.
+- Tidak ada console error maupun page error pada keempat kelompok. Screenshot
+  raw/hard-break juga diperiksa: dua baris tetap dua baris dan raw tampil sebagai
+  teks read-only, bukan HTML aktif.
+- Job CI `Runtime Chromium` memakai tooling opsional dengan versi dipin. Hasil
+  Chromium/Linux ini tidak menggantikan checklist webview/GUI native.
+
+## Update 26 Oktober 2026 — fidelity Markdown tahap 1A
+
+- YAML front matter dipisahkan sebelum `marked`, ditampilkan sebagai embed
+  read-only di WYSIWYG, dan dikembalikan utuh oleh serializer.
+- Nomor awal ordered list dan judul tautan inline disimpan sebagai metadata
+  Quill sehingga bertahan saat berpindah mode dan disimpan.
+- Newline berurutan di dalam blok tidak lagi di-collapse global; whitespace
+  front matter dan code block lebih aman.
+- Verifikasi lokal: `npm test` → **155 tests, 155 pass, 0 fail**;
+  `git diff --check` bersih. GUI/Rust native tetap belum diuji pada perubahan ini.
+
+Bagian berikut adalah laporan historis untuk konteks pekerjaan sebelumnya.
+
 Tanggal: 24 Oktober 2026. Branch: `arena/bcbf3e21-markrust`.
 Dokumen ini adalah titik masuk untuk melanjutkan pekerjaan; baca bersama
 [ROADMAP.md](ROADMAP.md) dan [DESKTOP-TEST-CHECKLIST.md](DESKTOP-TEST-CHECKLIST.md).
@@ -47,7 +351,13 @@ memiliki tes otomatis tersendiri; masukkan ke uji F07.
 
 ## Verifikasi yang tersedia
 
-- Lokal: `npm test` → **144 tests, 144 pass, 0 fail**.
+- Lokal pada update 26 Oktober 2026 (tahap 1B): `npm test` → **172 tests, 172 pass, 0 fail**.
+- Chromium 153 lokal: `npm run test:browser` → **4/4 kelompok lulus**, tanpa
+  console/page error; cakupan dan batasnya dijelaskan pada update di atas.
+- CI `40431135910`, commit `a306044`: **6/6 kelompok WebView Tauri native
+  Linux/WebKitGTK dan 5/5 kelompok multi-instance lulus**, termasuk R01–R05,
+  dialog restore, simpan hasil pemulihan, dua proses A/B, serta picker/Nanti
+  saja. Batas bukti manual, artefak, dan cakupan OS dijelaskan pada update M2.
 - Tidak ada toolchain Rust lokal; Rust diverifikasi lewat GitHub Actions.
 - CI M1c `40073225635`, commit `0ecfd7a`: Node + build/test Rust Linux,
   Windows, macOS lulus. Bundel rilis tidak berjalan pada push biasa.
@@ -61,8 +371,11 @@ memiliki tes otomatis tersendiri; masukkan ke uji F07.
 ### 1. Gerbang M1/M2: validasi lifecycle native
 
 Jalankan checklist tiga OS. Audit khusus registrasi close listener, permission,
-close berulang, Cmd+Q, error IPC, dan dialog yang dibatalkan. Tidak ada bukti
-runtime native dalam sesi sandbox ini. Jangan menandai M1/M2 selesai dulu.
+close berulang, Cmd+Q, error IPC, dan dialog yang dibatalkan. Bukti otomatis
+Linux/WebKitGTK kini ada pada CI `40431135910`, termasuk dialog restore penuh,
+R02/R03, dua proses A/B, dan picker beberapa recovery R05, tetapi checklist
+manual lintas OS dan kasus lain belum dicakup; belum ada runtime native
+Windows/macOS. Jangan menandai M1/M2 selesai dulu.
 
 ### 2. Lifecycle recovery yang masih terbatas
 

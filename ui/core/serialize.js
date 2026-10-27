@@ -36,6 +36,7 @@ export function lineRuns(line) {
     var ins = op.insert;
     if (ins && typeof ins === 'object') {
       if (typeof ins.image === 'string') runs.push({ image: ins.image, alt: attrs.alt || '' });
+      if (ins.hardbreak) runs.push({ hardbreak: true });
       continue;
     }
     if (typeof ins !== 'string') continue;
@@ -54,6 +55,18 @@ export function linesFromQuill(quill) {
     var line = raw[n];
     var blot = line.statics && line.statics.blotName;
     if (blot === 'divider') { lines.push({ divider: true, attrs: {}, runs: [] }); continue; }
+    if (blot === 'frontmatter') {
+      lines.push({
+        frontmatter: String(line.statics.value(line.domNode) || ''), attrs: {}, runs: []
+      });
+      continue;
+    }
+    if (blot === 'rawblock') {
+      lines.push({
+        rawBlock: String(line.statics.value(line.domNode) || ''), attrs: {}, runs: []
+      });
+      continue;
+    }
     var fmts = (line.formats && line.formats()) || {};
     lines.push({ runs: lineRuns(line), attrs: fmts || {} });
   }
@@ -105,10 +118,25 @@ export function safeLinkTarget(url) {
   return v;
 }
 
+function linkTitleSuffix(value) {
+  if (value === undefined || value === null) return '';
+  const title = String(value)
+    .replace(/[\r\n]+/g, ' ')
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"');
+  return ' "' + title + '"';
+}
+
 export function renderInline(runs, inTable) {
   var out = '';
   for (var i = 0; i < runs.length; i++) {
     var r = runs[i];
+    if (r.hardbreak) {
+      // Backslash memilih sintaks hard break tanpa trailing space yang dapat
+      // terhapus oleh editor lain. Di tabel, <br> menjaga baris tabel tetap utuh.
+      out += inTable ? '<br>' : '\\\n';
+      continue;
+    }
     if (r.image !== undefined) {
       var imgUrl = String(r.image).replace(/[\s()<>]/g, encodeURIComponent);
       out += '![' + String(r.alt || '').replace(/[[\]]/g, '') + '](' + imgUrl + ')';
@@ -134,7 +162,7 @@ export function renderInline(runs, inTable) {
     if (a.underline) t = '<u>' + t + '</u>';
     if (a.link) {
       var target = safeLinkTarget(a.link);
-      if (target) t = '[' + t + '](' + target + ')';
+      if (target) t = '[' + t + '](' + target + linkTitleSuffix(a['link-title']) + ')';
     }
     if (a.color || a.background) {
       var style = [];
@@ -237,11 +265,21 @@ export function serializeLines(lines) {
   var listCounters = [];
   var listMarkerWidths = [];
   var prevWasList = false;
-  var isEmpty = function (l) { return !l.divider && (!l.runs || l.runs.length === 0); };
+  var isEmpty = function (l) {
+    return !l.divider && l.frontmatter === undefined && l.rawBlock === undefined &&
+      (!l.runs || l.runs.length === 0);
+  };
 
   while (i < lines.length) {
     var l = lines[i];
 
+    // Objek raw dilewati oleh normalisasi whitespace blok biasa di akhir.
+    if (l.frontmatter !== undefined || l.rawBlock !== undefined) {
+      blocks.push({ raw: String(l.frontmatter !== undefined ? l.frontmatter : l.rawBlock) });
+      prevWasList = false;
+      i++;
+      continue;
+    }
     if (l.divider) { blocks.push('---'); prevWasList = false; i++; continue; }
     if (isEmpty(l)) { i++; continue; }
 
@@ -316,6 +354,12 @@ export function serializeLines(lines) {
           marker = '- [' + task + '] ';
         } else if (type === 'ordered') {
           listCounters.length = indent + 1;
+          const rawStart = lines[i].attrs['list-start'];
+          const start = Number(rawStart);
+          if (rawStart !== undefined && rawStart !== null && rawStart !== '' &&
+              Number.isSafeInteger(start) && start >= 0) {
+            listCounters[indent] = start - 1;
+          }
           listCounters[indent] = (listCounters[indent] || 0) + 1;
           marker = listCounters[indent] + '. ';
         } else if (type === 'checked') {
@@ -364,6 +408,11 @@ export function serializeLines(lines) {
     i++;
   }
 
-  var md = blocks.join('\n\n').replace(/\n{3,}/g, '\n\n').replace(/[ \t]+$/gm, '');
+  var md = blocks.map(function (block) {
+    if (block && typeof block === 'object' && block.raw !== undefined) return block.raw;
+    return String(block).replace(/[ \t]+$/gm, '');
+  }).join('\n\n');
+  // Jangan collapse newline di dalam blok: blank line ganda valid di code
+  // block dan dapat bermakna di YAML front matter.
   return md.replace(/\n+$/, '') + '\n';
 }

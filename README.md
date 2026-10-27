@@ -42,7 +42,8 @@ ui/
   core/
     serialize.js    Delta Quill -> Markdown (murni, tanpa DOM/Quill instance)
     markdown.js     Markdown -> HTML untuk Quill + statistik dokumen
-    quill-setup.js  registrasi blot <hr> & matcher clipboard (dipakai app + tes)
+    quill-setup.js  registrasi blot & matcher clipboard (dipakai app + tes)
+    raw-markdown.js  proteksi struktur raw yang belum aman untuk Quill
   files.js        I/O dokumen: dialog Tauri + fallback browser
   drafts.js       penyimpanan & pemulihan draf (murni, storage di-inject)
   image-policy.js allow-list gambar jarak jauh per dokumen
@@ -50,7 +51,10 @@ ui/
 tests/
   harness.js        jsdom + Quill/marked hasil vendoring (bukan mock)
   *.test.js         unit + round-trip sungguhan + smoke test boot aplikasi
-.github/workflows/  CI: tes Node + build Rust di Linux/Windows/macOS
+scripts/
+  validate-browser.mjs  validasi Chromium sungguhan (tooling opsional)
+  validate-native.mjs   WebDriver untuk binary Tauri Linux/WebKitGTK
+.github/workflows/  CI: tes Node + Chromium + Rust + WebView native Linux
 src-tauri/
   src/main.rs       shell Tauri + perintah berkas + menu native
   tauri.conf.json   konfigurasi aplikasi
@@ -78,14 +82,127 @@ Tes berjalan di `node:test` + jsdom dan menggunakan berkas `ui/vendor/` yang
 **sama** dengan yang dikirim ke webview — jadi round-trip yang diuji bukan
 tiruan. Cakupan: heading, indentasi & bahasa code block, fence backtick
 bersarang, list campuran bernomor, task list, alignment tabel, garis pemisah,
-tautan/gambar, warna, underline, escape teks, penolakan injeksi CSS/URL,
+tautan/gambar, warna, underline, escape teks, front matter, nomor awal list,
+raw HTML/komentar, blockquote kompleks, hard break, penolakan injeksi CSS/URL,
 idempotensi serialisasi, paritas jumlah kata lintas mode, dan smoke test yang
 memuat `index.html` + `app.js` sungguhan untuk menjaga wiring DOM tetap utuh.
 
-Beberapa perilaku yang sengaja didokumentasikan sebagai **batasan yang diketahui**
-(diuji supaya perubahannya ketahuan): soft line break melebur jadi spasi sesuai
-CommonMark, hard break di paragraf biasa berubah jadi dua paragraf, dan raw HTML
-kehilangan tag pembungkusnya.
+Batasan yang diketahui dan dikunci oleh tes: soft line break melebur jadi spasi
+sesuai CommonMark; hard break dinormalisasi ke sintaks backslash; struktur yang
+belum dapat diedit secara setia oleh Quill tampil sebagai raw read-only dan
+diedit melalui mode Markdown.
+
+### Validasi runtime Chromium (opsional)
+
+Tooling browser tidak dibutuhkan oleh aplikasi dan tidak ditambahkan ke
+`package.json`/lockfile. Versi dipin agar pemeriksaan dapat diulang:
+
+```bash
+npm install --no-save --package-lock=false playwright-core@1.64.1 @sparticuz/chromium@153.0.0
+npm run test:browser
+```
+
+Skrip menjalankan server lokalnya sendiri dan memeriksa boot/viewport minimum,
+konstruk fidelity + toggle keyboard, buka file → ketik → draf recovery →
+download, serta privasi gambar remote. Untuk memakai Chrome/Chromium yang sudah
+terpasang, cukup pasang `playwright-core@1.64.1` lalu set `CHROMIUM_PATH` ke
+executable-nya.
+
+CI menjalankan pemeriksaan ini pada Chromium/Linux. Ini **bukan** pengganti
+pengujian webview Tauri atau GUI native Windows/macOS/Linux di
+`DESKTOP-TEST-CHECKLIST.md`.
+
+### Validasi WebView Tauri native Linux
+
+Harness `test:native` memakai `tauri-driver` + `WebKitWebDriver` untuk membuka
+**binary Tauri sungguhan**, bukan Chromium atau jsdom. Setelah dependensi Linux
+Tauri tersedia:
+
+```bash
+sudo apt-get install webkit2gtk-driver xvfb xauth xdotool scrot openssl
+cargo build --manifest-path src-tauri/Cargo.toml
+cargo install tauri-driver --version 2.1.0 --locked
+MARKRUST_NATIVE_ARTIFACTS=/tmp/markrust-native xvfb-run -a npm run test:native
+MARKRUST_NATIVE_ARTIFACTS=/tmp/markrust-native xvfb-run -a npm run test:native:multi
+```
+
+Cakupannya adalah boot WebKitGTK/API Tauri/close handler, raw block + hard break
++ `Ctrl+Shift+M`, buka → edit → recovery disk → simpan pada path Unicode dan
+spasi, serta `SIGKILL` → restart → dialog restore GTK → isi/path/dirty pulih →
+simpan hasil pemulihan. Dialog restore ditemukan dan dikonfirmasi melalui
+`xdotool`; hanya pemilihan path pada dialog Buka yang distub. Pembacaan,
+penulisan, recovery, serializer, dan state UI tetap melalui implementasi
+Tauri/Rust nyata. Screenshot WebView, screenshot dialog X11, dan log driver
+disimpan di direktori artefak.
+
+Harness yang sama juga menjalankan R02: token user-source dimasukkan setiap
+40 ms selama lebih dari 3 detik, snapshot dibaca tanpa menghentikan pengetikan,
+lalu proses di-kill dan dipulihkan. Jeda antar-token harus tetap di bawah 700 ms;
+waktu snapshot dan selisih token pada sampel sebelum kill dicatat di
+`r02-measurement.json` sebagai pengukuran teramati, bukan jaminan nol kehilangan.
+
+R03 dilanjutkan dengan menghapus seluruh isi dokumen, menunggu snapshot valid
+ber-Markdown kosong, lalu crash/restart/restore. Editor harus tetap kosong tanpa
+marker lama, file lama tidak berubah sebelum simpan, dan hasil simpan kosong
+dibaca ulang melalui Rust sebelum recovery dibersihkan.
+
+`test:native:multi` menjalankan R04 dengan dua proses dan driver terpisah:
+membuka dokumen A/B, menyimpan A tanpa menghapus snapshot B, mematikan B,
+memulai proses pengganti, lalu memulihkan B melalui dialog GTK sementara A
+tetap berjalan. Isi editor, PID, file host, dan recovery kedua sesi diperiksa.
+
+Harness multi-instance juga menjalankan R05 dengan dua stale session: picker
+menampilkan dua path, kandidat yang tidak diadopsi dipilih melalui tombol nyata
+dan dikonfirmasi lewat GTK, serta snapshot kandidat lain diverifikasi identik.
+Pada proses berikutnya, tombol Nanti saja dipilih dan seluruh file snapshot
+sebelum/sesudah harus tetap identik. Ringkasan disimpan di `r05-evidence.json`.
+
+R06 membuat tiga stale session. Dua penantang mengadopsi kandidat C lalu B,
+tetap melihat kandidat bersama A, dan mengklik A secara konkuren melalui dua
+WebDriver. Pemenang ditentukan dari hasil nyata: tepat satu instance memperoleh
+lock dan membuka dialog GTK, sedangkan yang kalah menampilkan error tanpa
+mengubah editor/path/dirty. Pemenang harus memulihkan isi/path/dirty A; semua
+snapshot awal dan file asli tetap identik, dan versi baru hanya boleh ditambahkan
+pada session A yang dimenangkan. Ringkasan disimpan di `r06-evidence.json`.
+
+R07 menulis dua versi, merusak JSON terbaru setelah `SIGKILL`, lalu membuktikan
+restart memulihkan versi sebelumnya melalui dialog GTK tanpa memakai marker dari
+versi rusak. Semua snapshot awal, termasuk yang rusak, harus tetap identik setelah
+restore dan penulisan snapshot berikutnya; file asli tidak berubah. Pada skenario
+kedua seluruh versi dirusak: indikator kegagalan harus terlihat, tidak ada kandidat
+atau dialog restore, dan semua file corrupt tetap identik. Ringkasan disimpan di
+`r07-evidence.json`.
+
+R08 memakai dua sesi dan sparse file `.tmp` untuk mengisi ukuran logis recovery
+tepat 256 MiB tanpa menulis ratusan MiB ke disk fisik. Write baru pada A harus
+ditolak dengan indikator error, sementara editor/path/dirty, semua snapshot A/B,
+dan file asli tetap utuh. Setelah filler dilepas, flush yang sama harus berhasil,
+error hilang, dirty tetap aktif, dan snapshot B tetap identik. Ringkasan disimpan
+di `r08-evidence.json`.
+
+R09 menawarkan fixture `recovery-v1` bersama draf v2, memilih `legacy` melalui
+picker dan GTK, lalu membuktikan write pasca-restore tetap di v1 dan save hanya
+membersihkan legacy; snapshot v2 lain tetap identik. Draf localStorage lama juga
+diseed sebelum reload WebView saat sesi lain live dan terkunci. Restore menghasilkan
+satu kandidat disk, dan save membersihkan hanya disk/localStorage miliknya tanpa
+mengubah editor, snapshot, atau file sesi lain. Ringkasan disimpan di
+`r09-evidence.json`.
+
+P01 memakai server HTTPS lokal sebagai oracle jaringan nyata untuk gambar
+Markdown/inline, URL `//host`, `srcset`, dan CSS `url()`. Sertifikat self-signed
+hanya diterima oleh sesi automation P01; CSP dan TLS produksi tidak diubah.
+Pengujian ini menemukan bahwa `super.create(value)` pada blot Quill memulai dua
+request sebelum izin di WebKitGTK. Perbaikan kini memberikan placeholder ke blot
+dasar sejak awal dan hanya menyimpan URL asli di atribut inert. Hasil akhir:
+nol request sebelum izin, lalu hanya request gambar visual yang diizinkan pada
+kontrol positif; vektor raw/srcset/CSS tetap tanpa request. Log disimpan di
+`p01-network.json`. Seluruh harness lulus pada CI `40437798044` untuk commit
+`ec9f918`: 8/8 kelompok native tunggal dan 10/10 multi-instance.
+
+Pemeriksaan ini berjalan pada job Rust/Linux CI (`ubuntu-24.04`) sebagai bagian
+validasi M2/M3. Interaksi restore/picker dan dua proses dilakukan otomatis, bukan pengujian
+manual lintas OS. Checklist manual lintas OS, installer, dan runtime
+Windows/macOS tetap mengikuti `DESKTOP-TEST-CHECKLIST.md`.
 
 ## Keputusan UI
 
@@ -113,18 +230,20 @@ Pemblokiran dilakukan berlapis, karena satu titik saja tidak cukup:
 
 1. **Normalisasi HTML (utama).** Sebelum HTML diserahkan ke Quill, URL `src`
    gambar dipindah ke atribut inert `data-mr-src` dan diganti placeholder
-   `data:` lokal. Ini krusial: di Chrome, `img.src` memicu fetch **walau
-   elemennya tidak pernah dipasang ke DOM**, jadi menunggu sampai tahap render
-   sudah terlambat.
+   `data:` lokal. Ini krusial: di Chrome/WebKitGTK, `img.src` dapat memicu fetch
+   **walau elemennya tidak pernah dipasang ke DOM**, jadi menunggu sampai tahap
+   render sudah terlambat.
 2. **Sanitasi vektor lain.** `srcset`, CSS `url()`, `background`, `poster`,
    `ping`, `data`, `formaction`, handler `on*`, serta elemen
    `<iframe>/<object>/<script>/<style>/<svg>/<video>/<audio>/<input type=image>`
    dibuang. CSS dibuang per-deklarasi supaya warna teks/latar tetap ikut
    round-trip.
 3. **Blot gambar aman.** Menggantikan blot `image` bawaan Quill sebagai
-   pengaman kedua (misalnya untuk gambar yang disisipkan lewat paste).
-   `value()` membaca `data-mr-src`, sehingga **Delta dan berkas `.md` tetap
-   berisi URL asli** — tidak ada data yang hilang.
+   pengaman kedua (misalnya untuk gambar yang disisipkan lewat paste). Untuk URL
+   terblokir, placeholder diberikan ke `super.create()` sejak awal; URL remote
+   tidak pernah menyentuh pembuatan node dasar. `value()` membaca `data-mr-src`,
+   sehingga **Delta dan berkas `.md` tetap berisi URL asli** — tidak ada data
+   yang hilang.
 4. **Allow-list per dokumen.** URL dimuat hanya setelah pengguna menekan
    tombol **"Muat gambar"** di status bar, atau saat ia menyisipkan URL itu
    sendiri lewat dialog. Izin tidak pernah di-*persist* dan otomatis direset
@@ -144,7 +263,7 @@ dengan begitu `https:` bisa dihapus total dari CSP.
 
 | Arah | Jalur |
 | --- | --- |
-| Markdown → WYSIWYG | `marked` → normalisasi DOM → `quill.clipboard.dangerouslyPasteHTML()` |
+| Markdown → WYSIWYG | proteksi raw → `marked` → normalisasi DOM → `quill.clipboard.dangerouslyPasteHTML()` |
 | WYSIWYG → Markdown | `linesFromQuill()` → `serializeLines()` di `ui/core/serialize.js` |
 
 Konversi balik **tidak** memakai Turndown. Quill 2 tidak memakai DOM standar — code block
@@ -152,16 +271,21 @@ adalah `<div>`, bullet list direpresentasikan sebagai `<ol data-list="bullet">`,
 disimpan sebagai atribut format. Mengonversi DOM-nya akan merusak ketiganya, sehingga
 serializer ini membaca **Delta** Quill langsung, yang merupakan model datanya yang sebenarnya.
 
-Hal-hal yang dijaga saat round-trip: bahasa **dan indentasi** pada fenced code block
-(spasi/tab di awal baris tidak lagi terlipat), jenis list (bullet/ordered/bersarang,
-termasuk list campuran dengan penomoran yang tetap berlanjut), task list, tabel GFM
-beserta alignment kolom `:---:`/`---:`, backtick di dalam inline code (fence memanjang
-otomatis), tautan, gambar, warna teks dan latar, serta garis pemisah (`---`).
+Hal-hal yang dijaga saat round-trip: **YAML front matter** (sebagai blok read-only
+di WYSIWYG dan dapat diedit lewat mode Markdown), bahasa **dan indentasi** pada
+fenced code block (spasi/tab di awal baris tidak lagi terlipat), jenis list
+(bullet/ordered/bersarang, termasuk nomor awal ordered list dan list campuran
+dengan penomoran yang tetap berlanjut), task list, tabel GFM beserta alignment
+kolom `:---:`/`---:`, backtick di dalam inline code (fence memanjang otomatis),
+tautan beserta judulnya, gambar, warna teks dan latar, garis pemisah (`---`),
+hard break, serta raw HTML/komentar dan blockquote kompleks. Raw HTML yang belum
+memiliki ekuivalen visual aman serta list/nesting di dalam blockquote dipertahankan
+sebagai **blok raw read-only**; tidak diratakan menjadi paragraf dan tidak
+dieksekusi sebagai HTML aktif. Bagian tersebut tetap editable di mode Markdown.
 
 Catatan batasan: Quill 2 tidak menyimpan alignment rata kiri eksplisit, jadi `:---`
-ditulis ulang menjadi `---` (keduanya identik secara GFM). Quill juga melepas atribut
-blockquote pada baris yang sekaligus merupakan item list, sehingga list di dalam
-blockquote tidak bisa dipertahankan.
+ditulis ulang menjadi `---` (keduanya identik secara GFM). Soft line break mengikuti
+CommonMark dan autolink dapat dinormalisasi menjadi sintaks tautan inline.
 
 ## Library yang di-vendoring
 
@@ -254,8 +378,9 @@ Belum / perlu diperhatikan:
 - **CSP `img-src` masih mengizinkan `https:`** demi fitur pemuatan gambar atas
   izin eksplisit (lihat *Privasi gambar jarak jauh* di atas). Pemblokiran
   otomatis sudah aktif, tetapi pertahanannya ada di lapisan aplikasi.
-- **Raw HTML**, soft/hard line break, dan `:---` mengikuti batasan yang sudah
-  dijelaskan di bagian konversi.
+- **Blok raw read-only** belum dapat diedit visual; gunakan mode Markdown untuk
+  raw HTML kompleks dan list/nesting di dalam blockquote. Soft line break,
+  normalisasi hard break, dan `:---` mengikuti batasan di bagian konversi.
 - **Lisensi proyek** belum ditentukan. Yang ada saat ini hanya lisensi
   milik library yang di-vendoring; pilih lisensi untuk kode MarkRust sendiri
   sebelum dirilis ke publik.

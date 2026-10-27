@@ -51,6 +51,79 @@ Pekerjaan:
 **Kriteria keluar:** alur kritis lulus pada ketiga OS dengan bukti uji native;
 tidak ada blocker kehilangan data yang diketahui. Build CI saja tidak cukup.
 
+**Kemajuan 26 Oktober 2026:** commit `809f22f`, CI `40414344817` menambahkan dan
+meluluskan WebDriver pada binary Tauri Linux/WebKitGTK untuk boot, fidelity dan
+shortcut, serta buka/edit/recovery/simpan melalui IPC Rust. Dialog Buka hanya
+distub pada pemilihan path. Ini adalah bukti runtime native otomatis pertama,
+bukan penutupan M2: checklist manual tiga OS, dialog nyata, force-kill, dua
+proses, network inspector, dan installer masih terbuka.
+
+Lanjutan pada commit `c1e7372`, CI `40421156995`: empat kelompok native lulus di
+`ubuntu-24.04`, termasuk `SIGKILL` dan proses baru yang membaca snapshot dengan
+path/Markdown sama sementara file asli tidak berubah. Dialog restore tidak
+dijawab, sehingga R01/restore GUI penuh dan M2 tetap terbuka. Target Linux native
+dan bundel dipin ke Ubuntu 24.04 setelah dua run `ubuntu-latest` terhambat apt;
+Chromium tetap berjalan pada `ubuntu-latest`.
+
+Lanjutan pada commit `dbc0b6d`, CI `40424654018`: dialog restore GTK nyata
+dijawab Yes; isi/path/dirty pulih, file tidak berubah sebelum simpan, dan hasil
+restore berhasil disimpan. Harness multi-instance juga lulus untuk dua proses
+A/B: simpan A tidak menghapus snapshot B, B dapat di-kill/restart/restore, dan
+A tetap utuh. Ini menutup cakupan otomatis R01/R04 pada Linux saja, bukan baris
+manual R01/R04 atau M1/M2; checklist tiga OS dan runtime Windows/macOS terbuka.
+
+Lanjutan pada commit `446afb6`, CI `40427913703`: R02 membuktikan snapshot
+muncul saat token user-source masih masuk tiap 40 ms; sesi berlanjut melewati
+3,6 detik dengan jeda maksimum di bawah 700 ms. Kill/restart/restore serta simpan
+hasil lulus; `r02-measurement.json` mencatat selisih token pada sampel sebelum
+kill tanpa mengklaim nol kehilangan. Angka artefak belum diinspeksi di sandbox.
+Ini menambah bukti otomatis Linux saja; R02 manual dan gerbang M1/M2 tetap terbuka.
+
+Lanjutan pada commit `5cf01fb`, CI `40429916613`: R03 membuktikan snapshot
+valid dapat berisi Markdown kosong setelah seluruh isi dihapus. Kill/restart dan
+dialog restore tidak memunculkan marker lama, file asli tetap utuh sebelum
+simpan, dan hasil kosong berhasil ditulis/dibaca ulang melalui Rust sebelum
+recovery dibersihkan. Ini bukti otomatis Linux saja; R03 manual, checklist tiga
+OS, dan gerbang M1/M2 tetap terbuka.
+
+Lanjutan pada commit `a306044`, CI `40431135910`: R05 membuat dua stale session
+dan membuktikan picker memulihkan hanya kandidat pilihan melalui
+`select_recovery` serta dialog GTK. Snapshot kandidat lain tetap identik. Pada
+skenario kedua, Nanti saja tidak mengubah editor dan seluruh file snapshot
+tetap identik; dua kandidat masih terdaftar. Bukti ini otomatis Linux saja;
+R05 manual, R06, checklist tiga OS, dan gerbang M1/M2 tetap terbuka.
+
+Lanjutan pada commit `a6e3aac`, CI `40432064383`: R06 membuat tiga stale session
+dan dua penantang yang sama-sama memilih kandidat A secara konkuren. Tepat satu
+instance memperoleh lock dan memulihkan A melalui dialog GTK; yang kalah
+menampilkan error tanpa mengubah editor/path/dirty. Semua snapshot awal dan file
+asli tetap identik, dan versi baru hanya boleh muncul pada session A pemenang.
+Bukti ini otomatis Linux saja; R06 manual, R07–R09, checklist tiga OS, dan
+gerbang M1/M2 tetap terbuka.
+
+Lanjutan pada commit `a4293ed`, CI `40432859739`: R07 merusak snapshot JSON
+terbaru setelah kill dan membuktikan versi sebelumnya dipulihkan melalui dialog
+GTK. Semua snapshot awal, termasuk yang corrupt, tetap identik setelah restore
+dan penulisan versi berikutnya; file asli tidak berubah. Saat semua versi
+dirusak, aplikasi menampilkan error tanpa kandidat/dialog restore dan tanpa
+menghapus file corrupt. Bukti ini otomatis Linux saja; R07 manual, R08–R09,
+checklist tiga OS, dan gerbang M1/M2 tetap terbuka.
+
+Lanjutan pada commit `b689cb0`, CI `40434261611`: R08 memakai sparse file untuk
+mengisi ukuran logis recovery tepat 256 MiB. Snapshot baru A ditolak dengan
+error terlihat, editor/path/dirty tetap, dan seluruh snapshot A/B serta file asli
+tetap identik. Setelah ruang dibebaskan, flush berhasil, error hilang, dirty
+tetap aktif, dan sesi B tidak tersentuh. Bukti ini otomatis Linux saja; R08
+manual, R09, checklist tiga OS, dan gerbang M1/M2 tetap terbuka.
+
+Lanjutan pada commit `3d40737`, CI `40435271501`: R09 memulihkan kandidat
+`recovery-v1` dari picker yang juga memuat draf v2. Write tetap di v1 dan save
+hanya membersihkan legacy; draf v2 lain tetap identik. Draf localStorage lama
+juga dipulihkan setelah reload saat sesi lain live/terkunci, lalu save hanya
+membersihkan disk/localStorage miliknya tanpa mengubah sesi lain. Ini melengkapi
+cakupan otomatis R01–R09 pada Linux saja; seluruh baris manual, checklist tiga OS,
+dan gerbang M1/M2 tetap terbuka.
+
 ## M3 — Privasi gambar ditegakkan lintas lapisan (prioritas tinggi)
 
 **Tujuan:** hilangkan izin gambar jaringan langsung dari CSP tanpa membuka
@@ -74,6 +147,15 @@ request privat ditolak, termasuk setelah redirect/DNS resolution.
 
 **Catatan:** M3 dapat dikerjakan setelah fondasi M1 stabil, tetapi harus selesai
 sebelum mengklaim privasi jaringan yang ditegakkan oleh CSP.
+
+**Kemajuan 27 Oktober 2026:** commit `ec9f918`, CI `40437798044` menambahkan
+oracle HTTPS native untuk P01. Run `40437382967` menemukan dua request sebelum
+izin karena URL remote diberikan ke `super.create()` sebelum placeholder dipasang.
+Perbaikan memberikan placeholder ke blot dasar sejak awal; run final membuktikan
+nol request sebelum izin dan hanya path visual yang diizinkan setelahnya, tanpa
+request raw/srcset/CSS. Regresi unit bertambah menjadi 173 tes. Bukti ini otomatis
+Linux saja: P01 manual, P02–P03, hardening unduhan Rust/CSP, dan gerbang M3 tetap
+terbuka.
 
 ## M4 — Build reproducible dan kesiapan distribusi
 
@@ -129,8 +211,9 @@ known issues, dan catatan rilis tersedia. Beta tidak otomatis berarti stabil.
 
 - M1a diimplementasikan: direktori sesi + lock eksklusif OS, adopsi sesi
   terbengkalai setelah lock terlepas, dan perlindungan recovery v1 dengan lock.
-- Belum menutup seluruh M1: batas disk global, pemilihan beberapa recovery,
-  serta bukti pengujian dua proses desktop nyata masih diperlukan.
+- Belum menutup seluruh M1/M2: bukti otomatis dua proses kini ada pada Linux,
+  tetapi checklist manual dua proses dan kasus kritis lain pada tiga OS masih
+  diperlukan.
 
 ### Pelaksanaan M1b
 

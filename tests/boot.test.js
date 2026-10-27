@@ -157,6 +157,27 @@ test('setMarkdown lewat jembatan tidak menandai dokumen kotor', () => {
 });
 
 
+test('front matter dan metadata tautan/list bertahan lewat aplikasi', () => {
+  const md = '---\ntitle: Contoh\n---\n\n3. tiga\n4. empat\n\n[tautan](https://x.test "Judul")\n';
+  api.setMarkdown(md);
+  assert.equal(api.getMarkdown(), md);
+  api.setMode('markdown');
+  api.setMode('wysiwyg');
+  assert.equal(api.getMarkdown(), md);
+  assert.ok(window.document.querySelector('.mr-frontmatter'));
+});
+
+test('raw block dan hard break bertahan melalui aplikasi', () => {
+  const md = '> - satu\n> - dua\n\n<div class="kotak">HTML</div>\n\nbaris satu\\\nbaris dua\n';
+  api.setMarkdown(md);
+  assert.equal(api.getMarkdown(), md);
+  api.setMode('markdown');
+  api.setMode('wysiwyg');
+  assert.equal(api.getMarkdown(), md);
+  assert.equal(window.document.querySelectorAll('.mr-raw-block').length, 2);
+  assert.ok(window.document.querySelector('mr-hard-break'));
+});
+
 test('judul awal memakai "Tanpa Judul" lewat jembatan Tauri', async () => {
   await new Promise((r) => setTimeout(r, 0));
   assert.ok(titles.length > 0, 'setTitle harus dipanggil');

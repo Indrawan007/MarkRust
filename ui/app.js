@@ -22,7 +22,9 @@ import {
 } from './core/markdown.js';
 import {
   registerDividerBlot, registerHrMatcher,
-  registerSafeImageBlot, registerImageMatcher, revealAllowedImages
+  registerSafeImageBlot, registerImageMatcher, revealAllowedImages,
+  registerFrontmatterBlot, registerMarkdownMetadata, registerMarkdownMetadataMatchers,
+  registerRawContentBlots
 } from './core/quill-setup.js';
 import {
   resetImagePolicy, allowRemoteImage, allowAllRemoteImages,
@@ -62,6 +64,9 @@ function boot() {
   registerDividerBlot(Quill);
   // Harus sebelum `new Quill()` agar blot pengganti dipakai sejak awal.
   registerSafeImageBlot(Quill);
+  registerFrontmatterBlot(Quill);
+  registerMarkdownMetadata(Quill);
+  registerRawContentBlots(Quill);
 
   /* =========================================================
    * 2. Bahasa yang tersedia untuk syntax highlighting
@@ -188,6 +193,7 @@ function boot() {
 
   registerHrMatcher(quill, Quill);
   registerImageMatcher(quill, Quill);
+  registerMarkdownMetadataMatchers(quill);
 
   /* =========================================================
    * 4. Konversi (delegasi ke modul murni)

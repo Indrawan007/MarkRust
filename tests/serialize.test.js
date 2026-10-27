@@ -31,6 +31,15 @@ test('baris kosong dibuang, dua paragraf tetap terpisah', () => {
   assert.equal(out, 'satu\n\ndua\n');
 });
 
+test('front matter ditulis sebagai raw block tanpa collapse whitespace', () => {
+  const yaml = '---\ndescription: |\n  satu\n\n\n  dua  \n---';
+  const out = serializeLines([
+    { frontmatter: yaml, attrs: {}, runs: [] },
+    p('Isi')
+  ]);
+  assert.equal(out, yaml + '\n\nIsi\n');
+});
+
 test('divider ditulis sebagai --- dan memutus state list', () => {
   const out = serializeLines([p('atas'), hr(), p('bawah')]);
   assert.equal(out, 'atas\n\n---\n\nbawah\n');
@@ -84,6 +93,16 @@ test('list ordered bernomor, dan penomoran berlanjut lintas blok campuran', () =
   assert.equal(out, '1. satu\n2. dua\n   - anak\n3. tiga\n');
 });
 
+test('nomor awal ordered list dipakai lalu dilanjutkan', () => {
+  const out = serializeLines([
+    p('tiga', { list: 'ordered', 'list-start': '3' }),
+    p('empat', { list: 'ordered' }),
+    p('anak', { list: 'bullet', indent: 1 }),
+    p('lima', { list: 'ordered' })
+  ]);
+  assert.equal(out, '3. tiga\n4. empat\n   - anak\n5. lima\n');
+});
+
 test('penomoran direset setelah konten non-list', () => {
   const out = serializeLines([
     p('satu', { list: 'ordered' }),
@@ -127,11 +146,25 @@ test('renderInline: fence code span memanjang dan diberi spasi bantalan', () => 
   assert.equal(renderInline([{ text: '`x', attrs: { code: true } }], false), '`` `x ``');
 });
 
+test('renderInline mempertahankan hard break tanpa trailing spaces', () => {
+  const runs = [{ text: 'satu', attrs: {} }, { hardbreak: true }, { text: 'dua', attrs: {} }];
+  assert.equal(renderInline(runs, false), 'satu\\\ndua');
+  assert.equal(renderInline(runs, true), 'satu<br>dua');
+});
+
 test('renderInline: format diterapkan dengan urutan yang benar', () => {
   const out = renderInline([{
     text: 'teks', attrs: { bold: true, italic: true, strike: true, underline: true, link: 'https://x.test' }
   }], false);
   assert.equal(out, '[<u>~~***teks***~~</u>](https://x.test)');
+});
+
+test('renderInline mempertahankan dan meng-escape judul tautan', () => {
+  const out = renderInline([{
+    text: 'tautan',
+    attrs: { link: 'https://x.test', 'link-title': 'Judul "kerja" \\ akhir' }
+  }], false);
+  assert.equal(out, '[tautan](https://x.test "Judul \\"kerja\\" \\\\ akhir")');
 });
 
 test('escapeText: underscore intraword dibiarkan, emphasis tetap di-escape', () => {
