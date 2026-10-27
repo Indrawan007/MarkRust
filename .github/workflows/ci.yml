@@ -86,7 +86,7 @@ jobs:
           apt_retry update
           apt_retry install -y --no-install-recommends \
             libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
-            webkit2gtk-driver xvfb xauth xdotool scrot
+            webkit2gtk-driver xvfb xauth xdotool scrot openssl
 
       - name: Cargo build
         run: cargo build --manifest-path src-tauri/Cargo.toml

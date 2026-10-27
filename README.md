@@ -119,7 +119,7 @@ Harness `test:native` memakai `tauri-driver` + `WebKitWebDriver` untuk membuka
 Tauri tersedia:
 
 ```bash
-sudo apt-get install webkit2gtk-driver xvfb xauth xdotool scrot
+sudo apt-get install webkit2gtk-driver xvfb xauth xdotool scrot openssl
 cargo build --manifest-path src-tauri/Cargo.toml
 cargo install tauri-driver --version 2.1.0 --locked
 MARKRUST_NATIVE_ARTIFACTS=/tmp/markrust-native xvfb-run -a npm run test:native

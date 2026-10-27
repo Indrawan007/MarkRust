@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
+import https from 'node:https';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,6 +20,7 @@ const results = [];
 let tempRoot = '';
 let sharedData = '';
 let failure = null;
+let p01Server = null;
 
 async function waitFor(label, probe, timeout = 30000) {
   const deadline = Date.now() + timeout;
@@ -69,7 +71,7 @@ class NativeInstance {
     this.log?.write(text);
   }
 
-  async start() {
+  async start({ acceptInsecureCertificates = false } = {}) {
     this.log = fsSync.createWriteStream(path.join(artifactDir, `multi-${this.name}-driver.log`));
     const env = {
       ...process.env,
@@ -91,8 +93,12 @@ class NativeInstance {
       const status = await this.request('GET', '/status', undefined, 1000);
       return status?.ready !== false;
     }, 20000);
+    const alwaysMatch = { 'tauri:options': { application: appPath } };
+    // Hanya sesi P01 yang memakai sertifikat self-signed pada server lokal.
+    // Capability automation ini tidak mengubah binary atau CSP produksi.
+    if (acceptInsecureCertificates) alwaysMatch.acceptInsecureCertificates = true;
     const created = await this.request('POST', '/session', {
-      capabilities: { alwaysMatch: { 'tauri:options': { application: appPath } } }
+      capabilities: { alwaysMatch }
     }, 90000);
     this.sessionId = created?.sessionId;
     assert.ok(this.sessionId, `${this.name}: session ID tidak ada`);
@@ -266,11 +272,21 @@ class NativeInstance {
   }
 }
 
-async function launch(name, port, nativePort) {
+async function launch(name, port, nativePort, options) {
   const instance = new NativeInstance(name, port, nativePort);
   instances.push(instance);
-  await instance.start();
+  await instance.start(options);
   return instance;
+}
+
+async function stopP01Server() {
+  const server = p01Server;
+  p01Server = null;
+  if (!server) return;
+  await new Promise((resolve) => {
+    server.close(resolve);
+    server.closeAllConnections?.();
+  });
 }
 
 async function waitForPicker(instance, expectedPaths, label = 'picker recovery terlihat') {
@@ -1235,6 +1251,130 @@ try {
     await storage.stop();
     await other.stop();
   });
+
+  await step('P01: gambar remote native tanpa request sebelum izin', async () => {
+    await expectPids(0, 'semua proses R09 sudah berhenti');
+    sharedData = path.join(tempRoot, 'shared-data-p01');
+    await fs.mkdir(sharedData, { recursive: true });
+    const tlsDir = path.join(tempRoot, 'p01-tls');
+    await fs.mkdir(tlsDir, { recursive: true });
+    const keyPath = path.join(tlsDir, 'key.pem');
+    const certPath = path.join(tlsDir, 'cert.pem');
+    execFileSync('openssl', [
+      'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-sha256', '-days', '1',
+      '-subj', '/CN=localhost',
+      '-addext', 'subjectAltName=IP:127.0.0.1,DNS:localhost',
+      '-keyout', keyPath, '-out', certPath
+    ], { stdio: ['ignore', 'ignore', 'pipe'] });
+    const requests = [];
+    const pixel = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+      'base64'
+    );
+    p01Server = https.createServer({
+      key: await fs.readFile(keyPath), cert: await fs.readFile(certPath)
+    }, (req, res) => {
+      requests.push({ method: req.method, url: req.url });
+      res.writeHead(200, {
+        'Content-Type': 'image/png', 'Content-Length': String(pixel.length), 'Cache-Control': 'no-store'
+      });
+      res.end(pixel);
+    });
+    p01Server.on('clientError', (error, socket) => {
+      workflowError(`P01 client TLS/HTTP: ${error.message}`);
+      socket.destroy();
+    });
+    await new Promise((resolve, reject) => {
+      const onError = (error) => reject(error);
+      p01Server.once('error', onError);
+      p01Server.listen(0, '127.0.0.1', () => {
+        p01Server.off('error', onError);
+        resolve();
+      });
+    });
+    const address = p01Server.address();
+    const origin = `https://127.0.0.1:${address.port}`;
+    const schemeRelative = `//127.0.0.1:${address.port}/scheme.png`;
+    const visualUrls = [`${origin}/markdown.png`, `${origin}/inline.png`, schemeRelative];
+    const allowedPaths = new Set(['/markdown.png', '/inline.png', '/scheme.png']);
+    const forbiddenPaths = ['/raw.png', '/srcset.png', '/css.png'];
+    const source = [
+      '# P01 jaringan native', '',
+      `![markdown](${origin}/markdown.png)`, '',
+      `<img src="${origin}/inline.png">`, '',
+      `![scheme](${schemeRelative})`, '',
+      `<img src="${origin}/raw.png" srcset="${origin}/srcset.png 2x">`, '',
+      `<span style="background-image:url('${origin}/css.png')">CSS URL</span>`, ''
+    ].join('\n');
+    const networkPath = path.join(tempRoot, 'P01 remote Ω.md');
+    await fs.writeFile(networkPath, source, 'utf8');
+
+    const p01 = await launch('P01-network', 4480, 4481, { acceptInsecureCertificates: true });
+    await expectPids(1, 'PID P01');
+    const opened = await p01.openFile(networkPath);
+    assert.equal(opened.result, true, JSON.stringify(opened));
+    assert.equal(opened.path, networkPath, JSON.stringify(opened));
+    const blocked = await waitFor('vektor P01 tertahan di WebView', async () => {
+      const state = await p01.execute(`return {
+        held: Array.from(document.querySelectorAll('.ql-editor img[data-mr-src]'),
+          node => node.getAttribute('data-mr-src')),
+        rawBlocks: document.querySelectorAll('.ql-editor .mr-raw-block').length,
+        activeSrcset: document.querySelectorAll('.ql-editor img[srcset]').length,
+        activeCssUrls: document.querySelectorAll('.ql-editor [style*="url("]').length,
+        loadCount: document.getElementById('sb-load-images').dataset.count,
+        loadHidden: document.getElementById('sb-load-images').hidden
+      };`);
+      return state.held.length === 3 && state.rawBlocks === 2 ? state : false;
+    }, 10000);
+    assert.deepEqual(blocked.held.slice().sort(), visualUrls.slice().sort(), JSON.stringify(blocked));
+    assert.equal(blocked.activeSrcset, 0, JSON.stringify(blocked));
+    assert.equal(blocked.activeCssUrls, 0, JSON.stringify(blocked));
+    assert.equal(blocked.loadCount, '3', JSON.stringify(blocked));
+    assert.equal(blocked.loadHidden, false, JSON.stringify(blocked));
+
+    // Beri waktu untuk request yang mungkin terjadi saat parsing, paste ke
+    // Quill, render, maupun update statistik. Server adalah oracle independen.
+    await delay(1200);
+    assert.deepEqual(requests, [], `Request sebelum izin: ${JSON.stringify(requests)}`);
+    assert.equal(await fs.readFile(networkPath, 'utf8'), source);
+    await p01.screenshot('p01-01-blocked-no-requests.png');
+
+    // Kontrol positif: gambar visual boleh dimuat setelah persetujuan. Vektor
+    // raw/srcset/CSS tetap tidak boleh muncul sebagai request tambahan.
+    await p01.click('#sb-load-images');
+    await waitFor('kontrol positif request HTTPS P01', async () => {
+      const paths = requests.map((entry) => entry.url);
+      return paths.includes('/markdown.png') && paths.includes('/inline.png');
+    }, 10000);
+    await delay(800);
+    const afterPaths = requests.map((entry) => entry.url);
+    assert.ok(afterPaths.length >= 2, JSON.stringify(requests));
+    for (const requestPath of afterPaths) {
+      assert.ok(allowedPaths.has(requestPath), `Request tidak diizinkan: ${requestPath}`);
+    }
+    for (const forbidden of forbiddenPaths) {
+      assert.ok(!afterPaths.includes(forbidden), `Vektor raw lolos ke jaringan: ${forbidden}`);
+    }
+    const allowedState = await p01.recoveryState();
+    assert.equal(allowedState.path, networkPath, JSON.stringify(allowedState));
+    assert.equal(allowedState.dirty, false, JSON.stringify(allowedState));
+    assert.equal(await p01.execute("return document.getElementById('sb-load-images').hidden;"), true);
+    assert.equal(await fs.readFile(networkPath, 'utf8'), source);
+    const evidence = {
+      origin,
+      beforePermissionRequests: [],
+      heldImages: blocked.held,
+      rawVectorPaths: forbiddenPaths,
+      afterPermissionRequests: requests,
+      positiveControlObserved: true,
+      onlyVisualPathsAfterPermission: true,
+      originalFileUnchanged: true
+    };
+    await fs.writeFile(path.join(artifactDir, 'p01-network.json'), JSON.stringify(evidence, null, 2) + '\n', 'utf8');
+    await p01.screenshot('p01-02-authorized-requests-only.png');
+    await p01.stop();
+    await stopP01Server();
+  });
 } catch (error) {
   failure = error;
   console.error(error.stack || error);
@@ -1249,6 +1389,7 @@ try {
   for (const instance of [...instances].reverse()) {
     try { await instance.stop(); } catch { /* lanjutkan cleanup instance lain */ }
   }
+  try { await stopP01Server(); } catch { /* server mungkin sudah berhenti */ }
   if (tempRoot) await fs.rm(tempRoot, { recursive: true, force: true });
 }
 
