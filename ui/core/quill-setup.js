@@ -157,9 +157,9 @@ const safeImageRegistered = new WeakSet();
 /**
  * Ganti blot `image` bawaan Quill dengan versi yang menahan gambar jarak jauh.
  *
- * Kuncinya: `create()` menulis URL asli ke atribut `data-mr-src` dan mengganti
- * `src` dengan placeholder data-URI, sedangkan `value()` membaca kembali
- * `data-mr-src` lebih dulu. Akibatnya model data (Delta) TETAP berisi URL asli
+ * Kuncinya: `create()` memberi placeholder ke blot dasar sejak awal dan hanya
+ * menulis URL asli ke atribut inert `data-mr-src`, sedangkan `value()` membaca
+ * kembali atribut itu lebih dulu. Akibatnya model data (Delta) TETAP berisi URL asli
  * —serializer Markdown tidak rusak— sementara DOM tidak pernah memuat
  * sumber jaringan sampai pengguna mengizinkannya.
  *
@@ -175,12 +175,13 @@ export function registerSafeImageBlot(Quill) {
     static tagName = 'IMG';
 
     static create(value) {
-      const node = super.create(value);
       const url = String(value == null ? '' : value);
-      if (shouldBlockRemoteImage(url)) {
-        node.setAttribute('data-mr-src', url);
-        node.setAttribute('src', IMAGE_PLACEHOLDER);
-      }
+      const blocked = shouldBlockRemoteImage(url);
+      // WebKitGTK dapat mulai fetch dari img yang masih terlepas di dalam
+      // super.create(). Jangan pernah berikan URL terblokir ke blot dasar;
+      // mengganti src sesudahnya sudah terlambat dan membocorkan request.
+      const node = super.create(blocked ? IMAGE_PLACEHOLDER : value);
+      if (blocked) node.setAttribute('data-mr-src', url);
       return node;
     }
 

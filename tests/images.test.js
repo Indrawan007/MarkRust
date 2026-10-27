@@ -15,7 +15,7 @@ import {
 } from '../ui/core/image-policy.js';
 import { mdToQuillHtml, normalizeForQuill } from '../ui/core/markdown.js';
 import { linesFromQuill } from '../ui/core/serialize.js';
-import { revealAllowedImages } from '../ui/core/quill-setup.js';
+import { registerSafeImageBlot, revealAllowedImages } from '../ui/core/quill-setup.js';
 
 const { DOMParser } = getEnv();
 const REMOTE = 'https://tracker.example/pixel.png';
@@ -85,6 +85,44 @@ test('isRemoteImageUrl hanya mengenali http/https', () => {
 test('placeholder adalah data URI lokal, bukan URL jaringan', () => {
   assert.ok(IMAGE_PLACEHOLDER.startsWith('data:image/svg+xml'));
   assert.equal(isRemoteImageUrl(IMAGE_PLACEHOLDER), false);
+});
+
+test('blot dasar tidak pernah menerima URL remote yang masih diblokir', () => {
+  resetImagePolicy();
+  const baseValues = [];
+  class FakeNode {
+    constructor(src) { this.attrs = { src }; }
+    setAttribute(name, value) { this.attrs[name] = String(value); }
+    getAttribute(name) { return this.attrs[name] ?? null; }
+  }
+  class BaseImage {
+    static create(value) {
+      baseValues.push(value);
+      return new FakeNode(value);
+    }
+    static value(node) { return node.getAttribute('src'); }
+  }
+  let SafeImage;
+  const fakeQuill = {
+    import(name) { assert.equal(name, 'formats/image'); return BaseImage; },
+    register(blot, force) { assert.equal(force, true); SafeImage = blot; }
+  };
+  registerSafeImageBlot(fakeQuill);
+
+  const blocked = SafeImage.create(REMOTE);
+  assert.deepEqual(baseValues, [IMAGE_PLACEHOLDER],
+    'super.create() harus menerima placeholder sejak pemanggilan pertama');
+  assert.equal(blocked.getAttribute('src'), IMAGE_PLACEHOLDER);
+  assert.equal(blocked.getAttribute('data-mr-src'), REMOTE);
+  assert.equal(SafeImage.value(blocked), REMOTE, 'Delta tetap memuat URL asli');
+
+  allowRemoteImage(REMOTE);
+  const allowed = SafeImage.create(REMOTE);
+  assert.deepEqual(baseValues, [IMAGE_PLACEHOLDER, REMOTE],
+    'URL yang sudah diizinkan tetap boleh diteruskan');
+  assert.equal(allowed.getAttribute('data-mr-src'), null);
+  assert.equal(SafeImage.value(allowed), REMOTE);
+  resetImagePolicy();
 });
 
 test('kebijakan default memblokir; allow bekerja per-URL', () => {
