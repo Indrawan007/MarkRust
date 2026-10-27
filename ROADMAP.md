@@ -51,7 +51,7 @@ Pekerjaan:
 **Kriteria keluar:** alur kritis lulus pada ketiga OS dengan bukti uji native;
 tidak ada blocker kehilangan data yang diketahui. Build CI saja tidak cukup.
 
-**Kemajuan 27 Oktober 2026:** commit `809f22f`, CI `40414344817` menambahkan dan
+**Kemajuan 26 Oktober 2026:** commit `809f22f`, CI `40414344817` menambahkan dan
 meluluskan WebDriver pada binary Tauri Linux/WebKitGTK untuk boot, fidelity dan
 shortcut, serta buka/edit/recovery/simpan melalui IPC Rust. Dialog Buka hanya
 distub pada pemilihan path. Ini adalah bukti runtime native otomatis pertama,
@@ -64,6 +64,13 @@ path/Markdown sama sementara file asli tidak berubah. Dialog restore tidak
 dijawab, sehingga R01/restore GUI penuh dan M2 tetap terbuka. Target Linux native
 dan bundel dipin ke Ubuntu 24.04 setelah dua run `ubuntu-latest` terhambat apt;
 Chromium tetap berjalan pada `ubuntu-latest`.
+
+Lanjutan pada commit `dbc0b6d`, CI `40424654018`: dialog restore GTK nyata
+dijawab Yes; isi/path/dirty pulih, file tidak berubah sebelum simpan, dan hasil
+restore berhasil disimpan. Harness multi-instance juga lulus untuk dua proses
+A/B: simpan A tidak menghapus snapshot B, B dapat di-kill/restart/restore, dan
+A tetap utuh. Ini menutup cakupan otomatis R01/R04 pada Linux saja, bukan baris
+manual R01/R04 atau M1/M2; checklist tiga OS dan runtime Windows/macOS terbuka.
 
 ## M3 — Privasi gambar ditegakkan lintas lapisan (prioritas tinggi)
 
@@ -143,8 +150,9 @@ known issues, dan catatan rilis tersedia. Beta tidak otomatis berarti stabil.
 
 - M1a diimplementasikan: direktori sesi + lock eksklusif OS, adopsi sesi
   terbengkalai setelah lock terlepas, dan perlindungan recovery v1 dengan lock.
-- Belum menutup seluruh M1: batas disk global, pemilihan beberapa recovery,
-  serta bukti pengujian dua proses desktop nyata masih diperlukan.
+- Belum menutup seluruh M1/M2: bukti otomatis dua proses kini ada pada Linux,
+  tetapi checklist manual dua proses dan kasus kritis lain pada tiga OS masih
+  diperlukan.
 
 ### Pelaksanaan M1b
 

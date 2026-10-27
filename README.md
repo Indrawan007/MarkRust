@@ -139,6 +139,7 @@ disimpan di direktori artefak.
 membuka dokumen A/B, menyimpan A tanpa menghapus snapshot B, mematikan B,
 memulai proses pengganti, lalu memulihkan B melalui dialog GTK sementara A
 tetap berjalan. Isi editor, PID, file host, dan recovery kedua sesi diperiksa.
+Kedua harness lulus pada CI `40424654018` untuk commit `dbc0b6d`.
 
 Pemeriksaan ini berjalan pada job Rust/Linux CI (`ubuntu-24.04`) sebagai bagian
 M2. Interaksi restore dan dua proses dilakukan otomatis, bukan pengujian manual

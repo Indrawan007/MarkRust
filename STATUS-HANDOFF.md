@@ -1,6 +1,33 @@
 # Laporan status & handoff MarkRust
 
-## Update 27 Oktober 2026 — M2: force-kill/restart native
+## Update 27 Oktober 2026 — M2: dialog restore dan dua proses native
+
+- Commit tervalidasi `dbc0b6d`, CI `40424654018`: **4/4 kelompok native tunggal
+  dan 3/3 langkah multi-instance Linux/WebKitGTK lulus**. Implementasi dialog
+  berada pada `4ff4996`; harness dua proses pada `cbb726a`.
+- A04 kini menjawab dialog GTK **Pulihkan draf** yang nyata melalui `xdotool`
+  (Alt+Y), lalu membuktikan Markdown/path/dirty pulih. File asli tetap identik
+  sebelum simpan; `saveDocument(false)` kemudian menuliskan hasil restore dan
+  membersihkan recovery. Dialog restore tidak distub.
+- R04 menjalankan A dan B sebagai dua proses dengan PID berbeda dan dokumen
+  berbeda. Simpan A membersihkan hanya recovery A; snapshot B tetap ada. Setelah
+  B di-`SIGKILL`, proses pengganti memulihkan B melalui dialog sementara A tetap
+  berjalan. Editor/file A tidak berubah dan hasil restore B berhasil disimpan.
+- Hanya pemilihan path pada dialog Buka yang distub. IPC file Rust, recovery,
+  serializer, dialog restore, dan state UI tetap nyata.
+- Run `40423318194` sebelumnya berhenti pada apt setelah 10 menit dan tidak
+  menjalankan native. Batas timeout HTTP/HTTPS serta retry ditambahkan; run
+  `40424654018` kemudian lulus. Ini dicatat sebagai hambatan infrastruktur,
+  bukan kegagalan aplikasi.
+- Node 172 tes, Chromium 4 kelompok, serta build/test Rust Linux, Windows, dan
+  macOS juga lulus pada run terbaru; bundel rilis skipped pada push branch.
+  Artefak `native-webview-linux` ID `12699665120` tersedia, tetapi isi visualnya
+  belum diinspeksi dari sandbox.
+- **R01/R04 manual tetap BELUM DIUJI** dan M1/M2 belum ditutup. Checklist manual
+  tiga OS, native Windows/macOS runtime, network inspector native, dan installer
+  masih terbuka.
+
+## Update 26 Oktober 2026 — M2: force-kill/restart native
 
 - Commit `c1e7372`, CI `40421156995`: **4/4 kelompok native Linux/WebKitGTK
   lulus**. Kelompok baru mematikan proses MarkRust pertama dengan `SIGKILL`,
@@ -12,16 +39,16 @@
 - Dua run pada `ubuntu-latest` tidak menjalankan native karena apt macet; run
   `40419832339` berakhir timeout pada dependensi setelah 10 menit. Setup menjadi
   non-interactive dan build/native/bundel Linux dipin ke `ubuntu-24.04`; run
-  terbaru kemudian lulus. Ini tercatat sebagai masalah infrastruktur CI, bukan
-  kegagalan aplikasi.
+  `40421156995` kemudian lulus. Ini tercatat sebagai masalah infrastruktur CI,
+  bukan kegagalan aplikasi.
 - Node 172 tes, Chromium 4 kelompok, dan build/test Rust pada tiga OS juga
-  lulus pada run terbaru. Artefak `native-webview-linux` memuat empat screenshot
+  lulus pada run tersebut. Artefak `native-webview-linux` memuat empat screenshot
   dan log dua generasi driver; screenshot tetap belum dapat diinspeksi dari
   sandbox karena host unduhan eksternal.
 - M2 tetap terbuka: restore lewat dialog nyata, dua proses bersamaan, checklist
   manual, native Windows/macOS, dan installer belum diuji.
 
-## Update 27 Oktober 2026 — M2: WebView native Linux otomatis
+## Update 26 Oktober 2026 — M2: WebView native Linux otomatis
 
 - Commit `809f22f`, CI `40414344817`: langkah **Validasi WebView Tauri native
   (Linux/Xvfb)** lulus menggunakan binary Tauri, `tauri-driver` 2.1.0, dan
@@ -39,7 +66,7 @@
   build/test Rust Linux, Windows, dan macOS. Bundel rilis tetap dilewati pada
   push branch biasa.
 
-## Update 27 Oktober 2026 — fidelity Markdown tahap 1B
+## Update 26 Oktober 2026 — fidelity Markdown tahap 1B
 
 - Raw HTML/komentar, inline HTML yang atributnya belum didukung, serta
   list/nesting/heading di dalam blockquote dipertahankan sebagai raw read-only;
@@ -52,7 +79,7 @@
 - Verifikasi lokal terakhir: **172 tests, 172 pass, 0 fail**;
   `git diff --check` bersih. GUI/Rust native tetap belum diuji.
 
-## Update 27 Oktober 2026 — validasi runtime Chromium
+## Update 26 Oktober 2026 — validasi runtime Chromium
 
 - `npm run test:browser` lulus pada **Chromium 153.0.8010.0**: boot dan viewport
   minimum; front matter/raw block/hard break + `Ctrl+Shift+M`; buka file →
@@ -64,7 +91,7 @@
 - Job CI `Runtime Chromium` memakai tooling opsional dengan versi dipin. Hasil
   Chromium/Linux ini tidak menggantikan checklist webview/GUI native.
 
-## Update 27 Oktober 2026 — fidelity Markdown tahap 1A
+## Update 26 Oktober 2026 — fidelity Markdown tahap 1A
 
 - YAML front matter dipisahkan sebelum `marked`, ditampilkan sebagai embed
   read-only di WYSIWYG, dan dikembalikan utuh oleh serializer.
@@ -124,12 +151,13 @@ memiliki tes otomatis tersendiri; masukkan ke uji F07.
 
 ## Verifikasi yang tersedia
 
-- Lokal pada update 27 Oktober 2026 (tahap 1B): `npm test` → **172 tests, 172 pass, 0 fail**.
+- Lokal pada update 26 Oktober 2026 (tahap 1B): `npm test` → **172 tests, 172 pass, 0 fail**.
 - Chromium 153 lokal: `npm run test:browser` → **4/4 kelompok lulus**, tanpa
   console/page error; cakupan dan batasnya dijelaskan pada update di atas.
-- CI `40421156995`, commit `c1e7372`: **4/4 kelompok WebView Tauri native
-  Linux/WebKitGTK lulus**, termasuk force-kill/restart; batas restore GUI dan
-  cakupan lain dijelaskan pada update M2.
+- CI `40424654018`, commit `dbc0b6d`: **4/4 kelompok WebView Tauri native
+  Linux/WebKitGTK dan 3/3 langkah multi-instance lulus**, termasuk force-kill,
+  dialog restore, simpan hasil pemulihan, serta dua proses A/B. Batas bukti
+  manual dan cakupan OS dijelaskan pada update M2 teratas.
 - Tidak ada toolchain Rust lokal; Rust diverifikasi lewat GitHub Actions.
 - CI M1c `40073225635`, commit `0ecfd7a`: Node + build/test Rust Linux,
   Windows, macOS lulus. Bundel rilis tidak berjalan pada push biasa.
@@ -144,10 +172,10 @@ memiliki tes otomatis tersendiri; masukkan ke uji F07.
 
 Jalankan checklist tiga OS. Audit khusus registrasi close listener, permission,
 close berulang, Cmd+Q, error IPC, dan dialog yang dibatalkan. Bukti otomatis
-Linux/WebKitGTK kini ada pada CI `40421156995`, termasuk snapshot setelah
-force-kill/restart, tetapi restore lewat dialog nyata dan kasus manual lain
-belum dicakup; belum ada runtime native Windows/macOS. Jangan menandai M1/M2
-selesai dulu.
+Linux/WebKitGTK kini ada pada CI `40424654018`, termasuk dialog restore penuh
+dan dua proses A/B, tetapi checklist manual lintas OS dan kasus lain belum
+dicakup; belum ada runtime native Windows/macOS. Jangan menandai M1/M2 selesai
+dulu.
 
 ### 2. Lifecycle recovery yang masih terbatas
 

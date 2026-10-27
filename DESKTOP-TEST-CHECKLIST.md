@@ -21,9 +21,10 @@ Gunakan dokumen sintetis dan folder uji, bukan berkas kerja satu-satunya.
 
 ## Bukti otomatis native Linux (tidak mengubah tabel manual)
 
-Commit `c1e7372`, [CI `40421156995`](https://github.com/Indrawan007/MarkRust/actions/runs/40421156995),
-27 Oktober 2026: langkah **Validasi WebView Tauri native (Linux/Xvfb)** PASS pada
-runner `ubuntu-24.04`, binary Tauri + WebKitGTK melalui `tauri-driver` 2.1.0 dan
+Commit `dbc0b6d`, [CI `40424654018`](https://github.com/Indrawan007/MarkRust/actions/runs/40424654018),
+27 Oktober 2026: langkah **Validasi WebView Tauri native (Linux/Xvfb)** dan
+**Validasi dua proses Tauri native (Linux/Xvfb)** PASS pada runner
+`ubuntu-24.04`, binary Tauri + WebKitGTK melalui `tauri-driver` 2.1.0 dan
 `WebKitWebDriver`. Versi WebKit mengikuti image runner dan tidak dicatat sebagai
 versi manual yang sudah diverifikasi.
 
@@ -32,19 +33,20 @@ versi manual yang sudah diverifikasi.
 | A01 | Boot binary Tauri; API `window.__TAURI__`, editor, statistik, dan close handler tersedia | PASS; screenshot `01-native-boot.png` |
 | A02 | Front matter, raw block, hard break, script raw tidak aktif, dan `Ctrl+Shift+M` bolak-balik | PASS; screenshot `02-native-fidelity.png` |
 | A03 | Buka → edit → snapshot recovery disk → simpan → baca ulang pada path Unicode/spasi melalui IPC Rust | PASS; screenshot `03-native-saved.png` |
-| A04 | `SIGKILL` → driver/proses baru (PID berbeda) → snapshot dengan path/Markdown sama terbaca; file asli tidak berubah | PASS; screenshot `04-native-recovery-restart.png`; dialog restore tidak dijawab |
+| A04 | `SIGKILL` → proses baru → dialog GTK nyata dijawab Yes → isi/path/dirty pulih → file belum berubah → hasil restore disimpan dan recovery dibersihkan | PASS; screenshot `04b-native-recovery-dialog.png`, `05-native-restored.png`, `06-native-recovery-saved.png` |
+| A05 | Dua proses/PID dengan dokumen A/B → simpan A tanpa menghapus snapshot B → kill/restart B → restore B melalui dialog sementara editor dan file A tetap utuh | PASS; screenshot `multi-01-two-instances.png`, `multi-03-b-recovery-dialog.png`, `multi-04-b-restored-a-intact.png` |
 
-Artefak run: `native-webview-linux` (screenshot + `tauri-driver.log`, retensi 7
-hari). Pada A03 hanya pemilihan path dialog Buka yang distub; perintah
-`read_document`, `write_document`, recovery, serializer, dan state UI nyata.
-A04 membaca snapshot dari instance baru tetapi tidak menjawab dialog restore.
-Screenshot tidak diinspeksi di sandbox karena host unduhan artefak eksternal
-tidak dapat diakses; keberhasilan A01–A04 berasal dari status langkah CI.
+Artefak run: `native-webview-linux` (screenshot WebView/X11 + log driver,
+retensi 7 hari). Pada A03/A05 hanya pemilihan path dialog Buka yang distub;
+perintah `read_document`, `write_document`, recovery, serializer, dialog
+restore, dan state UI nyata. Screenshot tidak diinspeksi di sandbox karena host
+unduhan artefak eksternal tidak dapat diakses; keberhasilan A01–A05 berasal
+dari assertion harness dan status langkah CI.
 
-Bukti ini **tidak** menandai F01/F02/F09/R01 atau kasus manual lain sebagai PASS.
-Dialog nyata dan restore GUI penuh, window controls, dua proses bersamaan,
-network inspector, installer, serta runtime native Windows/macOS masih harus
-diuji terpisah.
+Bukti ini **tidak** menandai F01/F02/F09/R01/R04 atau kasus manual lain sebagai
+PASS. R01/R04 otomatis hanya lulus pada Linux/WebKitGTK; interaksi manual lintas
+OS, window controls, network inspector, installer, serta runtime native
+Windows/macOS masih harus diuji terpisah.
 
 ## Matriks kasus wajib (ulangi pada tiap OS)
 
