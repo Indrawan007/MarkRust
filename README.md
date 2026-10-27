@@ -141,11 +141,16 @@ lalu proses di-kill dan dipulihkan. Jeda antar-token harus tetap di bawah 700 ms
 waktu snapshot dan selisih token pada sampel sebelum kill dicatat di
 `r02-measurement.json` sebagai pengukuran teramati, bukan jaminan nol kehilangan.
 
+R03 dilanjutkan dengan menghapus seluruh isi dokumen, menunggu snapshot valid
+ber-Markdown kosong, lalu crash/restart/restore. Editor harus tetap kosong tanpa
+marker lama, file lama tidak berubah sebelum simpan, dan hasil simpan kosong
+dibaca ulang melalui Rust sebelum recovery dibersihkan.
+
 `test:native:multi` menjalankan R04 dengan dua proses dan driver terpisah:
 membuka dokumen A/B, menyimpan A tanpa menghapus snapshot B, mematikan B,
 memulai proses pengganti, lalu memulihkan B melalui dialog GTK sementara A
 tetap berjalan. Isi editor, PID, file host, dan recovery kedua sesi diperiksa.
-Seluruh harness di atas lulus pada CI `40427913703` untuk commit `446afb6`.
+Seluruh harness di atas lulus pada CI `40429916613` untuk commit `5cf01fb`.
 
 Pemeriksaan ini berjalan pada job Rust/Linux CI (`ubuntu-24.04`) sebagai bagian
 M2. Interaksi restore dan dua proses dilakukan otomatis, bukan pengujian manual

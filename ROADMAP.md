@@ -79,6 +79,13 @@ hasil lulus; `r02-measurement.json` mencatat selisih token pada sampel sebelum
 kill tanpa mengklaim nol kehilangan. Angka artefak belum diinspeksi di sandbox.
 Ini menambah bukti otomatis Linux saja; R02 manual dan gerbang M1/M2 tetap terbuka.
 
+Lanjutan pada commit `5cf01fb`, CI `40429916613`: R03 membuktikan snapshot
+valid dapat berisi Markdown kosong setelah seluruh isi dihapus. Kill/restart dan
+dialog restore tidak memunculkan marker lama, file asli tetap utuh sebelum
+simpan, dan hasil kosong berhasil ditulis/dibaca ulang melalui Rust sebelum
+recovery dibersihkan. Ini bukti otomatis Linux saja; R03 manual, checklist tiga
+OS, dan gerbang M1/M2 tetap terbuka.
+
 ## M3 — Privasi gambar ditegakkan lintas lapisan (prioritas tinggi)
 
 **Tujuan:** hilangkan izin gambar jaringan langsung dari CSP tanpa membuka
