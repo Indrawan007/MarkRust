@@ -135,6 +135,12 @@ penulisan, recovery, serializer, dan state UI tetap melalui implementasi
 Tauri/Rust nyata. Screenshot WebView, screenshot dialog X11, dan log driver
 disimpan di direktori artefak.
 
+Harness yang sama juga menjalankan R02: token user-source dimasukkan setiap
+40 ms selama lebih dari 3 detik, snapshot dibaca tanpa menghentikan pengetikan,
+lalu proses di-kill dan dipulihkan. Jeda antar-token harus tetap di bawah 700 ms;
+waktu snapshot dan selisih token pada sampel sebelum kill dicatat di
+`r02-measurement.json` sebagai pengukuran teramati, bukan jaminan nol kehilangan.
+
 `test:native:multi` menjalankan R04 dengan dua proses dan driver terpisah:
 membuka dokumen A/B, menyimpan A tanpa menghapus snapshot B, mematikan B,
 memulai proses pengganti, lalu memulihkan B melalui dialog GTK sementara A
