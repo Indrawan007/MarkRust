@@ -71,7 +71,7 @@ class NativeInstance {
     this.log?.write(text);
   }
 
-  async start({ acceptInsecureCertificates = false } = {}) {
+  async start({ acceptInsecureCerts = false } = {}) {
     this.log = fsSync.createWriteStream(path.join(artifactDir, `multi-${this.name}-driver.log`));
     const env = {
       ...process.env,
@@ -96,7 +96,7 @@ class NativeInstance {
     const alwaysMatch = { 'tauri:options': { application: appPath } };
     // Hanya sesi P01 yang memakai sertifikat self-signed pada server lokal.
     // Capability automation ini tidak mengubah binary atau CSP produksi.
-    if (acceptInsecureCertificates) alwaysMatch.acceptInsecureCertificates = true;
+    if (acceptInsecureCerts) alwaysMatch.acceptInsecureCerts = true;
     const created = await this.request('POST', '/session', {
       capabilities: { alwaysMatch }
     }, 90000);
@@ -1309,7 +1309,7 @@ try {
     const networkPath = path.join(tempRoot, 'P01 remote Ω.md');
     await fs.writeFile(networkPath, source, 'utf8');
 
-    const p01 = await launch('P01-network', 4480, 4481, { acceptInsecureCertificates: true });
+    const p01 = await launch('P01-network', 4480, 4481, { acceptInsecureCerts: true });
     await expectPids(1, 'PID P01');
     const opened = await p01.openFile(networkPath);
     assert.equal(opened.result, true, JSON.stringify(opened));
