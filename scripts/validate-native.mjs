@@ -251,13 +251,44 @@ function captureX11(name) {
   x11('scrot', ['--overwrite', path.join(artifactDir, name)]);
 }
 
+function recoveryRoot() {
+  return path.join(tempRoot, 'data', 'com.markrust.app', 'recovery-v2');
+}
+
+async function readRecoverySnapshotMap() {
+  const dirs = await fs.readdir(recoveryRoot(), { withFileTypes: true }).catch((error) => {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  });
+  const rows = [];
+  for (const dir of dirs.filter((entry) => entry.isDirectory() && entry.name.startsWith('session-'))
+    .sort((a, b) => a.name.localeCompare(b.name))) {
+    const files = await fs.readdir(path.join(recoveryRoot(), dir.name), { withFileTypes: true });
+    for (const file of files.filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
+      .sort((a, b) => a.name.localeCompare(b.name))) {
+      const key = `${dir.name}/${file.name}`;
+      rows.push([key, await fs.readFile(path.join(recoveryRoot(), key), 'utf8')]);
+    }
+  }
+  return Object.fromEntries(rows);
+}
+
+function visibleRestoreDialogs() {
+  try {
+    return x11('xdotool', ['search', '--onlyvisible', '--name', 'Pulihkan draf'])
+      .split(/\s+/).filter(Boolean);
+  } catch (error) {
+    if (error.status === 1) return [];
+    throw error;
+  }
+}
+
 async function confirmRestoreDialog({
   screenshotName = '04b-native-recovery-dialog.png',
   windowReportName = 'restore-x11-windows.txt'
 } = {}) {
   const dialogId = await waitFor('dialog restore GTK terlihat', async () => {
-    const ids = x11('xdotool', ['search', '--onlyvisible', '--name', 'Pulihkan draf'])
-      .split(/\s+/).filter(Boolean);
+    const ids = visibleRestoreDialogs();
     assert.equal(ids.length, 1, `Jendela dialog restore harus tunggal: ${ids.join(', ')}`);
     return ids[0];
   }, 15000);
@@ -709,6 +740,183 @@ try {
     await waitFor('recovery R03 bersih setelah simpan', async () => (await invoke('read_recovery')) === null, 5000);
     await screenshot('12-r03-empty-saved.png');
     skipSessionCleanup = false;
+  });
+
+  const r07Evidence = {};
+  let r07Context = null;
+  await step('R07: snapshot terbaru rusak, fallback versi sebelumnya, dan file tetap utuh', async () => {
+    const crashPath = await execute('return window.MarkRust.getPath();');
+    const savedOnDisk = await fs.readFile(crashPath, 'utf8');
+    assert.equal(savedOnDisk.trim(), '', 'R07 harus mulai dari hasil simpan kosong R03');
+    const initialPids = await findAppPids();
+    assert.equal(initialPids.length, 1, JSON.stringify(initialPids));
+    const firstPid = initialPids[0];
+    const previousMarker = 'R07 versi sebelumnya Ω.';
+    const latestMarker = 'R07 versi terbaru yang harus dilewati Ω.';
+    skipSessionCleanup = true;
+
+    await execute(`
+      const q = window.MarkRust.quill;
+      q.insertText(q.getLength() - 1, '\\n' + arguments[0], 'user');
+    `, [previousMarker]);
+    const previousDraft = await waitFor('snapshot R07 versi sebelumnya', async () => {
+      const raw = await invoke('read_recovery');
+      if (!raw) return false;
+      const value = JSON.parse(raw);
+      return value.path === crashPath && value.markdown.includes(previousMarker) ? value : false;
+    }, 8000);
+    await execute(`
+      const q = window.MarkRust.quill;
+      q.insertText(q.getLength() - 1, '\\n' + arguments[0], 'user');
+    `, [latestMarker]);
+    const latestDraft = await waitFor('snapshot R07 versi terbaru', async () => {
+      const raw = await invoke('read_recovery');
+      if (!raw) return false;
+      const value = JSON.parse(raw);
+      return value.path === crashPath && value.markdown.includes(latestMarker) ? value : false;
+    }, 8000);
+    assert.notEqual(latestDraft.markdown, previousDraft.markdown);
+
+    const beforeCorruption = await readRecoverySnapshotMap();
+    const keys = Object.keys(beforeCorruption).sort();
+    assert.equal(keys.length, 2, `R07 harus mempunyai tepat dua versi: ${JSON.stringify(keys)}`);
+    const previousKey = keys[0];
+    const latestKey = keys[1];
+    assert.equal(JSON.parse(beforeCorruption[previousKey]).markdown, previousDraft.markdown);
+    assert.equal(JSON.parse(beforeCorruption[latestKey]).markdown, latestDraft.markdown);
+    const corruptedLatest = '{"version":1,"markdown":"R07 terbaru rusak"';
+    await fs.writeFile(path.join(recoveryRoot(), latestKey), corruptedLatest, 'utf8');
+    const beforeRestart = await readRecoverySnapshotMap();
+    assert.equal(beforeRestart[latestKey], corruptedLatest);
+    assert.equal(beforeRestart[previousKey], beforeCorruption[previousKey]);
+
+    assert.equal(await forceKillApp(firstPid), firstPid);
+    await restartDriverAndSession();
+    await waitFor('instance R07 baru setelah restart', () => execute(
+      'return !!(window.MarkRust && window.__TAURI__ && window.MarkRust.isCloseHandlerRegistered());'
+    ));
+    const secondPids = await findAppPids();
+    assert.equal(secondPids.length, 1, JSON.stringify(secondPids));
+    assert.notEqual(secondPids[0], firstPid, 'R07 harus memakai proses OS baru');
+
+    const fallbackDraft = await waitFor('fallback R07 membaca versi sebelumnya', async () => {
+      const raw = await invoke('read_recovery');
+      if (!raw) return false;
+      const value = JSON.parse(raw);
+      return value.path === crashPath && value.markdown === previousDraft.markdown ? value : false;
+    }, 10000);
+    assert.equal(fallbackDraft.markdown, previousDraft.markdown);
+    assert.doesNotMatch(fallbackDraft.markdown, /versi terbaru yang harus dilewati/);
+    const rows = JSON.parse(await invoke('list_recoveries'));
+    assert.equal(rows.length, 1, JSON.stringify(rows));
+    assert.equal(rows[0].path, crashPath);
+    assert.deepEqual(await readRecoverySnapshotMap(), beforeRestart,
+      'Membaca fallback tidak boleh mengubah atau menghapus snapshot');
+    assert.equal(await fs.readFile(crashPath, 'utf8'), savedOnDisk);
+    await screenshot('13-r07-fallback-restart.png');
+    await confirmRestoreDialog({
+      screenshotName: '13b-r07-fallback-dialog.png',
+      windowReportName: 'r07-fallback-x11-windows.txt'
+    });
+
+    const restored = await waitFor('versi sebelumnya R07 dipulihkan melalui dialog', async () => {
+      const state = await execute(`return {
+        path: window.MarkRust.getPath(), dirty: window.MarkRust.isDirty(),
+        markdown: window.MarkRust.getMarkdown()
+      };`);
+      return state.path === crashPath && state.dirty && state.markdown === previousDraft.markdown ? state : false;
+    }, 10000);
+    assert.doesNotMatch(restored.markdown, /versi terbaru yang harus dilewati/);
+    assert.equal(await fs.readFile(crashPath, 'utf8'), savedOnDisk);
+
+    // Tunggu debounce pasca-restore selesai. Retensi juga harus tetap berlaku
+    // setelah penulisan versi baru dan cleanup yang mungkin menyertainya.
+    await waitFor('snapshot fallback R07 selesai ditulis setelah restore', async () => {
+      const current = await readRecoverySnapshotMap();
+      return Object.keys(current).length > Object.keys(beforeRestart).length ? current : false;
+    }, 5000);
+    const afterRestore = await readRecoverySnapshotMap();
+    for (const [key, raw] of Object.entries(beforeRestart)) {
+      assert.equal(afterRestore[key], raw, `Snapshot R07 berubah/hilang setelah restore: ${key}`);
+    }
+    const additions = Object.keys(afterRestore).filter((key) => !(key in beforeRestart));
+    assert.ok(additions.some((key) => JSON.parse(afterRestore[key]).markdown === previousDraft.markdown),
+      `Snapshot fallback baru tidak ditemukan: ${JSON.stringify(additions)}`);
+    assert.equal(afterRestore[latestKey], corruptedLatest, 'Snapshot rusak harus tetap identik');
+    assert.equal(await fs.readFile(crashPath, 'utf8'), savedOnDisk);
+    r07Evidence.fallback = {
+      previousSnapshotRestored: true,
+      corruptLatestExcluded: true,
+      originalSnapshotsPreservedAfterRewrite: true,
+      originalFileUnchanged: true,
+      snapshotFilesBefore: Object.keys(beforeRestart),
+      additionalSnapshotFiles: additions
+    };
+    await screenshot('14-r07-fallback-restored.png');
+    r07Context = { crashPath, savedOnDisk };
+  });
+
+  await step('R07: semua snapshot rusak menampilkan error dan tidak dihapus otomatis', async () => {
+    assert.ok(r07Context, 'Skenario fallback R07 harus selesai lebih dahulu');
+    const { crashPath, savedOnDisk } = r07Context;
+    const pids = await findAppPids();
+    assert.equal(pids.length, 1, JSON.stringify(pids));
+    const previousPid = pids[0];
+    assert.equal(await forceKillApp(previousPid), previousPid);
+
+    const validSnapshots = await readRecoverySnapshotMap();
+    const keys = Object.keys(validSnapshots).sort();
+    assert.ok(keys.length >= 3, `Snapshot R07 kurang untuk skenario semua rusak: ${JSON.stringify(keys)}`);
+    const corruptedSnapshots = {};
+    for (const [index, key] of keys.entries()) {
+      const raw = `bukan-json-r07-${index}\n`;
+      await fs.writeFile(path.join(recoveryRoot(), key), raw, 'utf8');
+      corruptedSnapshots[key] = raw;
+    }
+    assert.deepEqual(await readRecoverySnapshotMap(), corruptedSnapshots);
+
+    await restartDriverAndSession();
+    await waitFor('instance R07 dengan semua snapshot rusak siap', () => execute(
+      'return !!(window.MarkRust && window.__TAURI__ && window.MarkRust.isCloseHandlerRegistered());'
+    ));
+    const restartedPids = await findAppPids();
+    assert.equal(restartedPids.length, 1, JSON.stringify(restartedPids));
+    assert.notEqual(restartedPids[0], previousPid);
+    await waitFor('indikator kegagalan recovery untuk semua snapshot rusak', () => execute(
+      "return !document.getElementById('sb-draft-error').hidden;"
+    ), 10000);
+    await delay(800); // Beri kesempatan dialog/cleanup lanjutan yang keliru untuk terlihat.
+
+    const state = await execute(`return {
+      path: window.MarkRust.getPath(), dirty: window.MarkRust.isDirty(),
+      markdown: window.MarkRust.getMarkdown(),
+      pickerOpen: document.getElementById('recovery-dialog').open,
+      errorVisible: !document.getElementById('sb-draft-error').hidden
+    };`);
+    assert.equal(state.path, null, JSON.stringify(state));
+    assert.equal(state.dirty, false, JSON.stringify(state));
+    assert.equal(state.pickerOpen, false, JSON.stringify(state));
+    assert.equal(state.errorVisible, true, JSON.stringify(state));
+    assert.doesNotMatch(state.markdown, /R07 versi|R07 terbaru/);
+    assert.deepEqual(visibleRestoreDialogs(), [], 'Semua rusak tidak boleh membuka dialog restore');
+    const rows = JSON.parse(await invoke('list_recoveries'));
+    assert.deepEqual(rows, [], 'Snapshot rusak tidak boleh ditawarkan sebagai kandidat');
+    await assert.rejects(invoke('read_recovery'), /Tidak ada versi cadangan yang valid/);
+    assert.deepEqual(await readRecoverySnapshotMap(), corruptedSnapshots,
+      'Semua file snapshot rusak harus tetap ada dan identik');
+    assert.equal(await fs.readFile(crashPath, 'utf8'), savedOnDisk);
+    r07Evidence.allCorrupt = {
+      errorVisible: true,
+      candidatesOffered: rows.length,
+      restoreDialogCount: 0,
+      allSnapshotFilesIdentical: true,
+      originalFileUnchanged: true,
+      snapshotFiles: Object.keys(corruptedSnapshots)
+    };
+    await fs.writeFile(path.join(artifactDir, 'r07-evidence.json'), JSON.stringify(r07Evidence, null, 2) + '\n', 'utf8');
+    await screenshot('15-r07-all-corrupt.png');
+    // skipSessionCleanup tetap true: cleanup akhir mematikan proses, bukan
+    // memanggil clear_recovery, setelah retensi file corrupt dibuktikan.
   });
 } catch (error) {
   failure = error;
