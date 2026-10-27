@@ -190,6 +190,15 @@ class NativeInstance {
     };`);
   }
 
+  recoveryState() {
+    return this.execute(`return {
+      path: window.MarkRust.getPath(), dirty: window.MarkRust.isDirty(),
+      markdown: window.MarkRust.getMarkdown(),
+      pickerOpen: document.getElementById('recovery-dialog').open,
+      errorVisible: !document.getElementById('sb-draft-error').hidden
+    };`);
+  }
+
   async edit(marker) {
     await this.execute(`
       const q = window.MarkRust.quill;
@@ -625,6 +634,162 @@ try {
     await g.screenshot('r05-05-deferred.png');
     await g.deleteSession();
     await g.stop();
+  });
+
+  await step('R06: dua instance berebut kandidat yang sama dan hanya satu menang', async () => {
+    await expectPids(0, 'semua proses R05 sudah berhenti');
+    // Pisahkan data R06 agar tiga kandidat berasal dari sesi yang terkendali.
+    sharedData = path.join(tempRoot, 'shared-data-r06');
+    await fs.mkdir(sharedData, { recursive: true });
+    const candidates = [
+      { name: 'A', path: path.join(tempRoot, 'race A Ω.md'), source: '# Race A\n\nIsi awal A.\n', marker: 'Draf bersama R06 A Ω.' },
+      { name: 'B', path: path.join(tempRoot, 'race B Ω.md'), source: '# Race B\n\nIsi awal B.\n', marker: 'Draf bersama R06 B Ω.' },
+      { name: 'C', path: path.join(tempRoot, 'race C Ω.md'), source: '# Race C\n\nIsi awal C.\n', marker: 'Draf bersama R06 C Ω.' }
+    ];
+    for (const candidate of candidates) await fs.writeFile(candidate.path, candidate.source, 'utf8');
+
+    const makers = [];
+    const makerPorts = [[4458, 4459], [4460, 4461], [4462, 4463]];
+    for (let index = 0; index < candidates.length; index++) {
+      const candidate = candidates[index];
+      const maker = await launch(`R06-maker-${candidate.name}`, makerPorts[index][0], makerPorts[index][1]);
+      makers.push(maker);
+      const pids = await expectPids(index + 1, `PID pembuat kandidat ${candidate.name}`);
+      candidate.pid = pids.find((pid) => !candidates.slice(0, index).some((other) => other.pid === pid));
+      assert.ok(candidate.pid, JSON.stringify({ index, pids }));
+      assert.deepEqual(await maker.openFile(candidate.path), {
+        result: true, path: candidate.path, markdown: candidate.source
+      });
+      await maker.edit(candidate.marker);
+      const draft = await maker.recovery(candidate.marker);
+      assert.equal(draft.path, candidate.path);
+      const rows = JSON.parse(await maker.invoke('list_recoveries'));
+      assert.equal(rows.length, 1, JSON.stringify(rows));
+      assert.equal(rows[0].path, candidate.path);
+      candidate.id = rows[0].id;
+    }
+    assert.equal(new Set(candidates.map((candidate) => candidate.id)).size, 3,
+      JSON.stringify(candidates.map((candidate) => candidate.id)));
+    for (let index = 0; index < makers.length; index++) {
+      await killPid(candidates[index].pid);
+      makers[index].sessionId = '';
+      await makers[index].stop();
+    }
+    await expectPids(0, 'ketiga pemilik kandidat R06 berhenti');
+    const initialSnapshots = await readSnapshotMap();
+    assert.equal(Object.keys(initialSnapshots).length, 3, JSON.stringify(Object.keys(initialSnapshots)));
+    for (const candidate of candidates) {
+      assert.equal(Object.keys(sessionSnapshots(initialSnapshots, candidate.id)).length, 1,
+        `Satu snapshot awal untuk ${candidate.name}`);
+    }
+
+    // Kandidat C diadopsi lebih dahulu, lalu B; A tetap menjadi kandidat
+    // bersama yang terlihat pada picker kedua instance.
+    const first = await launch('R06-first', 4464, 4465);
+    await expectPids(1, 'PID penantang pertama');
+    await waitForPicker(first, candidates.map((candidate) => candidate.path), 'picker tiga kandidat');
+    await first.screenshot('r06-01-first-picker.png');
+    const second = await launch('R06-second', 4466, 4467);
+    await expectPids(2, 'PID kedua penantang');
+    const shared = candidates[0];
+    const adoptedBySecond = candidates[1];
+    await waitForPicker(second, [shared.path, adoptedBySecond.path], 'picker dengan kandidat bersama');
+    await second.screenshot('r06-02-second-picker.png');
+    const beforeFirst = await first.recoveryState();
+    const beforeSecond = await second.recoveryState();
+    for (const before of [beforeFirst, beforeSecond]) {
+      assert.equal(before.path, null, JSON.stringify(before));
+      assert.equal(before.dirty, false, JSON.stringify(before));
+      assert.equal(before.errorVisible, false, JSON.stringify(before));
+    }
+    const firstPicker = await first.pickerState();
+    const secondPicker = await second.pickerState();
+    const buttonIndex = (picker) => picker.buttons.findIndex((text) => text.startsWith(shared.path));
+    const firstIndex = buttonIndex(firstPicker);
+    const secondIndex = buttonIndex(secondPicker);
+    assert.ok(firstIndex >= 0 && secondIndex >= 0, JSON.stringify({ firstPicker, secondPicker }));
+
+    const clicks = await Promise.allSettled([
+      first.click(`#recovery-list button:nth-child(${firstIndex + 1})`),
+      second.click(`#recovery-list button:nth-child(${secondIndex + 1})`)
+    ]);
+    assert.deepEqual(clicks.map((result) => result.status), ['fulfilled', 'fulfilled'], JSON.stringify(clicks));
+
+    let winner = null;
+    let loser = null;
+    let beforeWinner = null;
+    let beforeLoser = null;
+    await waitFor('tepat satu pemenang lock dan satu indikator gagal', async () => {
+      const states = await Promise.all([first.recoveryState(), second.recoveryState()]);
+      const dialogs = visibleRestoreDialogs();
+      assert.ok(dialogs.length <= 1, `Dua instance tidak boleh sama-sama membuka restore: ${dialogs.join(', ')}`);
+      if (states[0].pickerOpen || states[1].pickerOpen || dialogs.length !== 1) return false;
+      const options = [
+        { instance: first, state: states[0], other: states[1], before: beforeFirst },
+        { instance: second, state: states[1], other: states[0], before: beforeSecond }
+      ];
+      const outcome = options.find((option) => !option.state.errorVisible && option.other.errorVisible);
+      if (!outcome) return false;
+      winner = outcome.instance;
+      loser = winner === first ? second : first;
+      beforeWinner = outcome.before;
+      beforeLoser = winner === first ? beforeSecond : beforeFirst;
+      return true;
+    }, 15000);
+    assert.ok(winner && loser && beforeWinner && beforeLoser, 'Hasil race harus lengkap');
+    const winnerDraft = JSON.parse(await winner.invoke('read_recovery'));
+    const loserDraft = JSON.parse(await loser.invoke('read_recovery'));
+    assert.equal(winnerDraft.path, shared.path, 'Pemenang harus memegang kandidat bersama');
+    assert.notEqual(loserDraft.path, shared.path, 'Yang kalah tidak boleh mengadopsi kandidat bersama');
+
+    await confirmRestoreDialog({
+      label: 'satu dialog GTK untuk pemenang R06',
+      screenshotName: 'r06-03-one-restore-dialog.png',
+      windowReportName: 'r06-race-x11-windows.txt'
+    });
+    const restored = await waitFor('pemenang R06 memulihkan kandidat bersama', async () => {
+      const state = await winner.state();
+      return state.path === shared.path && state.dirty && state.markdown.includes(shared.marker) ? state : false;
+    }, 10000);
+    assert.doesNotMatch(restored.markdown, /Draf bersama R06 [BC]/);
+    const winnerAfter = await winner.recoveryState();
+    const loserAfter = await loser.recoveryState();
+    assert.equal(winnerAfter.errorVisible, false, JSON.stringify(winnerAfter));
+    assert.equal(loserAfter.errorVisible, true, 'Instance yang kalah harus menampilkan kegagalan recovery');
+    assert.equal(loserAfter.pickerOpen, false, JSON.stringify(loserAfter));
+    assert.equal(loserAfter.path, beforeLoser.path, JSON.stringify(loserAfter));
+    assert.equal(loserAfter.dirty, false, JSON.stringify(loserAfter));
+    assert.equal(loserAfter.markdown, beforeLoser.markdown, 'Editor instance yang kalah tidak boleh berubah');
+    assert.deepEqual(visibleRestoreDialogs(), []);
+    assert.ok(beforeWinner.path === null && beforeWinner.dirty === false);
+
+    const afterRace = await readSnapshotMap();
+    for (const [key, raw] of Object.entries(initialSnapshots)) {
+      assert.equal(afterRace[key], raw, `Snapshot awal tidak boleh berubah/hilang: ${key}`);
+    }
+    const additions = Object.keys(afterRace).filter((key) => !(key in initialSnapshots));
+    assert.ok(additions.every((key) => key.startsWith(`${shared.id}/`)),
+      `Versi baru hanya boleh berada pada kandidat pemenang: ${JSON.stringify(additions)}`);
+    for (const candidate of candidates) {
+      assert.equal(await fs.readFile(candidate.path, 'utf8'), candidate.source,
+        `File asli ${candidate.name} tidak boleh berubah`);
+    }
+    const evidence = {
+      sharedSessionId: shared.id,
+      sharedPath: shared.path,
+      winner: winner.name,
+      loser: loser.name,
+      loserErrorVisible: true,
+      loserEditorUnchanged: true,
+      originalSnapshotsPreserved: true,
+      additionalSnapshotFiles: additions,
+      originalFilesUnchanged: true
+    };
+    await fs.writeFile(path.join(artifactDir, 'r06-evidence.json'), JSON.stringify(evidence, null, 2) + '\n', 'utf8');
+    await winner.screenshot('r06-04-winner.png');
+    await loser.screenshot('r06-05-loser.png');
+    await first.stop();
+    await second.stop();
   });
 } catch (error) {
   failure = error;
