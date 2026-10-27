@@ -1,5 +1,31 @@
 # Laporan status & handoff MarkRust
 
+## Update 27 Oktober 2026 — M2: R02 pengetikan kontinu native
+
+- Commit tervalidasi `446afb6`, CI `40427913703`: **5/5 kelompok native tunggal
+  dan 3/3 langkah multi-instance Linux/WebKitGTK lulus**. Harness R02 berada
+  pada `531b44c`; tidak ada kode produksi yang diubah untuk increment ini.
+- Token user-source dimasukkan setiap 40 ms selama lebih dari 3,6 detik tanpa
+  menghentikan interval saat membaca snapshot. Assertion memastikan sedikitnya
+  50 token, jeda antar-token maksimum di bawah 700 ms, dan snapshot muncul saat
+  pengetikan masih berlangsung.
+- Setelah `SIGKILL` dan proses baru, dialog GTK nyata dijawab Yes. Isi restore
+  sama persis dengan snapshot pada sampel sebelum kill, path/dirty benar, dan
+  file asli tidak berubah sebelum simpan. Hasil restore kemudian disimpan dan
+  recovery dibersihkan.
+- `r02-measurement.json` mencatat waktu snapshot, sequence editor/snapshot, jeda
+  maksimum, dan selisih token pada sampel sebelum kill. Angka artefak belum
+  diinspeksi dari sandbox; tidak ada klaim nol kehilangan atau jumlah pasti.
+- Run `40425531548` dan `40426788056` berhenti pada apt sebelum native. Pemanggilan
+  apt kemudian dibatasi 90 detik dengan maksimal tiga percobaan; run
+  `40427913703` lulus. Hambatan tersebut bukan kegagalan aplikasi/R02.
+- Node 172 tes, Chromium 4 kelompok, dan build/test Rust tiga OS juga lulus;
+  bundel rilis skipped. Artefak `native-webview-linux` ID `12700342570`
+  tersedia, tetapi isi visual dan JSON-nya belum diinspeksi dari sandbox.
+- **R02 manual tetap BELUM DIUJI**; R01/R04 manual dan M1/M2 juga belum ditutup.
+  Checklist tiga OS, native Windows/macOS runtime, network inspector native,
+  dan installer tetap terbuka.
+
 ## Update 27 Oktober 2026 — M2: dialog restore dan dua proses native
 
 - Commit tervalidasi `dbc0b6d`, CI `40424654018`: **4/4 kelompok native tunggal
@@ -20,7 +46,7 @@
   `40424654018` kemudian lulus. Ini dicatat sebagai hambatan infrastruktur,
   bukan kegagalan aplikasi.
 - Node 172 tes, Chromium 4 kelompok, serta build/test Rust Linux, Windows, dan
-  macOS juga lulus pada run terbaru; bundel rilis skipped pada push branch.
+  macOS juga lulus pada run `40424654018`; bundel rilis skipped pada push branch.
   Artefak `native-webview-linux` ID `12699665120` tersedia, tetapi isi visualnya
   belum diinspeksi dari sandbox.
 - **R01/R04 manual tetap BELUM DIUJI** dan M1/M2 belum ditutup. Checklist manual
@@ -154,10 +180,10 @@ memiliki tes otomatis tersendiri; masukkan ke uji F07.
 - Lokal pada update 26 Oktober 2026 (tahap 1B): `npm test` → **172 tests, 172 pass, 0 fail**.
 - Chromium 153 lokal: `npm run test:browser` → **4/4 kelompok lulus**, tanpa
   console/page error; cakupan dan batasnya dijelaskan pada update di atas.
-- CI `40424654018`, commit `dbc0b6d`: **4/4 kelompok WebView Tauri native
-  Linux/WebKitGTK dan 3/3 langkah multi-instance lulus**, termasuk force-kill,
+- CI `40427913703`, commit `446afb6`: **5/5 kelompok WebView Tauri native
+  Linux/WebKitGTK dan 3/3 langkah multi-instance lulus**, termasuk R01, R02,
   dialog restore, simpan hasil pemulihan, serta dua proses A/B. Batas bukti
-  manual dan cakupan OS dijelaskan pada update M2 teratas.
+  manual, angka pengukuran, dan cakupan OS dijelaskan pada update M2 teratas.
 - Tidak ada toolchain Rust lokal; Rust diverifikasi lewat GitHub Actions.
 - CI M1c `40073225635`, commit `0ecfd7a`: Node + build/test Rust Linux,
   Windows, macOS lulus. Bundel rilis tidak berjalan pada push biasa.
@@ -172,10 +198,10 @@ memiliki tes otomatis tersendiri; masukkan ke uji F07.
 
 Jalankan checklist tiga OS. Audit khusus registrasi close listener, permission,
 close berulang, Cmd+Q, error IPC, dan dialog yang dibatalkan. Bukti otomatis
-Linux/WebKitGTK kini ada pada CI `40424654018`, termasuk dialog restore penuh
-dan dua proses A/B, tetapi checklist manual lintas OS dan kasus lain belum
-dicakup; belum ada runtime native Windows/macOS. Jangan menandai M1/M2 selesai
-dulu.
+Linux/WebKitGTK kini ada pada CI `40427913703`, termasuk dialog restore penuh,
+pengetikan kontinu R02, dan dua proses A/B, tetapi checklist manual lintas OS
+dan kasus lain belum dicakup; belum ada runtime native Windows/macOS. Jangan
+menandai M1/M2 selesai dulu.
 
 ### 2. Lifecycle recovery yang masih terbatas
 

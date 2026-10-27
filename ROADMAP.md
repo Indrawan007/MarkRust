@@ -72,6 +72,13 @@ A/B: simpan A tidak menghapus snapshot B, B dapat di-kill/restart/restore, dan
 A tetap utuh. Ini menutup cakupan otomatis R01/R04 pada Linux saja, bukan baris
 manual R01/R04 atau M1/M2; checklist tiga OS dan runtime Windows/macOS terbuka.
 
+Lanjutan pada commit `446afb6`, CI `40427913703`: R02 membuktikan snapshot
+muncul saat token user-source masih masuk tiap 40 ms; sesi berlanjut melewati
+3,6 detik dengan jeda maksimum di bawah 700 ms. Kill/restart/restore serta simpan
+hasil lulus; `r02-measurement.json` mencatat selisih token pada sampel sebelum
+kill tanpa mengklaim nol kehilangan. Angka artefak belum diinspeksi di sandbox.
+Ini menambah bukti otomatis Linux saja; R02 manual dan gerbang M1/M2 tetap terbuka.
+
 ## M3 — Privasi gambar ditegakkan lintas lapisan (prioritas tinggi)
 
 **Tujuan:** hilangkan izin gambar jaringan langsung dari CSP tanpa membuka

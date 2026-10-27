@@ -21,7 +21,7 @@ Gunakan dokumen sintetis dan folder uji, bukan berkas kerja satu-satunya.
 
 ## Bukti otomatis native Linux (tidak mengubah tabel manual)
 
-Commit `dbc0b6d`, [CI `40424654018`](https://github.com/Indrawan007/MarkRust/actions/runs/40424654018),
+Commit `446afb6`, [CI `40427913703`](https://github.com/Indrawan007/MarkRust/actions/runs/40427913703),
 27 Oktober 2026: langkah **Validasi WebView Tauri native (Linux/Xvfb)** dan
 **Validasi dua proses Tauri native (Linux/Xvfb)** PASS pada runner
 `ubuntu-24.04`, binary Tauri + WebKitGTK melalui `tauri-driver` 2.1.0 dan
@@ -35,18 +35,20 @@ versi manual yang sudah diverifikasi.
 | A03 | Buka → edit → snapshot recovery disk → simpan → baca ulang pada path Unicode/spasi melalui IPC Rust | PASS; screenshot `03-native-saved.png` |
 | A04 | `SIGKILL` → proses baru → dialog GTK nyata dijawab Yes → isi/path/dirty pulih → file belum berubah → hasil restore disimpan dan recovery dibersihkan | PASS; screenshot `04b-native-recovery-dialog.png`, `05-native-restored.png`, `06-native-recovery-saved.png` |
 | A05 | Dua proses/PID dengan dokumen A/B → simpan A tanpa menghapus snapshot B → kill/restart B → restore B melalui dialog sementara editor dan file A tetap utuh | PASS; screenshot `multi-01-two-instances.png`, `multi-03-b-recovery-dialog.png`, `multi-04-b-restored-a-intact.png` |
+| A06 | R02: token user-source tiap 40 ms selama >3,6 detik dengan jeda <700 ms → snapshot saat mengetik → kill/restart → restore sama dengan snapshot → file belum berubah → simpan | PASS; `r02-measurement.json`, screenshot `07b-r02-recovery-dialog.png`, `08-r02-restored.png`, `09-r02-saved.png` |
 
 Artefak run: `native-webview-linux` (screenshot WebView/X11 + log driver,
 retensi 7 hari). Pada A03/A05 hanya pemilihan path dialog Buka yang distub;
 perintah `read_document`, `write_document`, recovery, serializer, dialog
-restore, dan state UI nyata. Screenshot tidak diinspeksi di sandbox karena host
-unduhan artefak eksternal tidak dapat diakses; keberhasilan A01–A05 berasal
-dari assertion harness dan status langkah CI.
+restore, dan state UI nyata. Screenshot dan angka dalam `r02-measurement.json`
+tidak diinspeksi di sandbox karena host unduhan artefak eksternal tidak dapat
+diakses; keberhasilan A01–A06 berasal dari assertion harness dan status CI.
+Selisih token R02 adalah pengukuran sampel, bukan klaim nol kehilangan.
 
-Bukti ini **tidak** menandai F01/F02/F09/R01/R04 atau kasus manual lain sebagai
-PASS. R01/R04 otomatis hanya lulus pada Linux/WebKitGTK; interaksi manual lintas
-OS, window controls, network inspector, installer, serta runtime native
-Windows/macOS masih harus diuji terpisah.
+Bukti ini **tidak** menandai F01/F02/F09/R01/R02/R04 atau kasus manual lain
+sebagai PASS. R01/R02/R04 otomatis hanya lulus pada Linux/WebKitGTK; interaksi
+manual lintas OS, window controls, network inspector, installer, serta runtime
+native Windows/macOS masih harus diuji terpisah.
 
 ## Matriks kasus wajib (ulangi pada tiap OS)
 
