@@ -186,11 +186,21 @@ membersihkan legacy; snapshot v2 lain tetap identik. Draf localStorage lama juga
 diseed sebelum reload WebView saat sesi lain live dan terkunci. Restore menghasilkan
 satu kandidat disk, dan save membersihkan hanya disk/localStorage miliknya tanpa
 mengubah editor, snapshot, atau file sesi lain. Ringkasan disimpan di
-`r09-evidence.json`. Seluruh harness di atas lulus pada CI `40435271501` untuk
-commit `3d40737`: 8/8 kelompok native tunggal dan 9/9 multi-instance.
+`r09-evidence.json`.
+
+P01 memakai server HTTPS lokal sebagai oracle jaringan nyata untuk gambar
+Markdown/inline, URL `//host`, `srcset`, dan CSS `url()`. Sertifikat self-signed
+hanya diterima oleh sesi automation P01; CSP dan TLS produksi tidak diubah.
+Pengujian ini menemukan bahwa `super.create(value)` pada blot Quill memulai dua
+request sebelum izin di WebKitGTK. Perbaikan kini memberikan placeholder ke blot
+dasar sejak awal dan hanya menyimpan URL asli di atribut inert. Hasil akhir:
+nol request sebelum izin, lalu hanya request gambar visual yang diizinkan pada
+kontrol positif; vektor raw/srcset/CSS tetap tanpa request. Log disimpan di
+`p01-network.json`. Seluruh harness lulus pada CI `40437798044` untuk commit
+`ec9f918`: 8/8 kelompok native tunggal dan 10/10 multi-instance.
 
 Pemeriksaan ini berjalan pada job Rust/Linux CI (`ubuntu-24.04`) sebagai bagian
-M2. Interaksi restore/picker dan dua proses dilakukan otomatis, bukan pengujian
+validasi M2/M3. Interaksi restore/picker dan dua proses dilakukan otomatis, bukan pengujian
 manual lintas OS. Checklist manual lintas OS, installer, dan runtime
 Windows/macOS tetap mengikuti `DESKTOP-TEST-CHECKLIST.md`.
 
@@ -220,18 +230,20 @@ Pemblokiran dilakukan berlapis, karena satu titik saja tidak cukup:
 
 1. **Normalisasi HTML (utama).** Sebelum HTML diserahkan ke Quill, URL `src`
    gambar dipindah ke atribut inert `data-mr-src` dan diganti placeholder
-   `data:` lokal. Ini krusial: di Chrome, `img.src` memicu fetch **walau
-   elemennya tidak pernah dipasang ke DOM**, jadi menunggu sampai tahap render
-   sudah terlambat.
+   `data:` lokal. Ini krusial: di Chrome/WebKitGTK, `img.src` dapat memicu fetch
+   **walau elemennya tidak pernah dipasang ke DOM**, jadi menunggu sampai tahap
+   render sudah terlambat.
 2. **Sanitasi vektor lain.** `srcset`, CSS `url()`, `background`, `poster`,
    `ping`, `data`, `formaction`, handler `on*`, serta elemen
    `<iframe>/<object>/<script>/<style>/<svg>/<video>/<audio>/<input type=image>`
    dibuang. CSS dibuang per-deklarasi supaya warna teks/latar tetap ikut
    round-trip.
 3. **Blot gambar aman.** Menggantikan blot `image` bawaan Quill sebagai
-   pengaman kedua (misalnya untuk gambar yang disisipkan lewat paste).
-   `value()` membaca `data-mr-src`, sehingga **Delta dan berkas `.md` tetap
-   berisi URL asli** — tidak ada data yang hilang.
+   pengaman kedua (misalnya untuk gambar yang disisipkan lewat paste). Untuk URL
+   terblokir, placeholder diberikan ke `super.create()` sejak awal; URL remote
+   tidak pernah menyentuh pembuatan node dasar. `value()` membaca `data-mr-src`,
+   sehingga **Delta dan berkas `.md` tetap berisi URL asli** — tidak ada data
+   yang hilang.
 4. **Allow-list per dokumen.** URL dimuat hanya setelah pengguna menekan
    tombol **"Muat gambar"** di status bar, atau saat ia menyisipkan URL itu
    sendiri lewat dialog. Izin tidak pernah di-*persist* dan otomatis direset

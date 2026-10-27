@@ -1,5 +1,35 @@
 # Laporan status & handoff MarkRust
 
+## Update 27 Oktober 2026 — M3: P01 jaringan native dan fix blot
+
+- Commit tervalidasi `ec9f918`, CI `40437798044`: **8/8 kelompok native tunggal
+  dan 10/10 multi-instance Linux/WebKitGTK lulus**, termasuk P01. Harness awal
+  berada pada `0389622`; koreksi capability pada `2813550`; perbaikan produksi
+  dan regresi unit pada `ec9f918`.
+- Server HTTPS lokal mencatat request nyata untuk gambar Markdown/inline,
+  protocol-relative `//host`, raw `srcset`, dan CSS `url()`. Hanya sesi P01 yang
+  memakai `acceptInsecureCerts` untuk sertifikat self-signed lokal; CSP dan
+  kebijakan TLS produksi tidak diubah. Hasil akhir: nol request sebelum izin,
+  lalu kontrol positif hanya memuat path gambar visual yang diizinkan. Blok raw,
+  srcset, dan CSS tidak menghasilkan request.
+- Run `40436970374` berhenti pada setup P01 karena harness salah mengirim
+  `acceptInsecureCertificates`; WebKitWebDriver menerima nama standar
+  `acceptInsecureCerts`. Ini kegagalan harness, bukan aplikasi.
+- Run `40437382967` kemudian menemukan **bug privasi nyata**: GET `/markdown.png`
+  dan `/inline.png` terjadi sebelum izin. `SafeImageBlot.create()` dahulu memanggil
+  `super.create(value)` dengan URL remote, dan WebKitGTK mulai fetch sebelum `src`
+  sempat diganti placeholder. Kini blot dasar langsung menerima placeholder untuk
+  URL terblokir; URL asli hanya disimpan pada `data-mr-src` dan tetap round-trip.
+- Tes unit baru membuktikan base class tidak pernah menerima URL terblokir,
+  sedangkan URL yang diizinkan tetap diteruskan. **Node kini 173 tes**; seluruh
+  173 tes, 4 kelompok Chromium, dan build/test Rust tiga OS lulus pada run final.
+- `p01-network.json` dan dua screenshot tersimpan pada artefak
+  `native-webview-linux` ID `12705390294`; isi visual/JSON belum diinspeksi dari
+  sandbox karena host unduhan eksternal tidak dapat diakses. Kelulusan berasal
+  dari assertion CI dan log request server.
+- **P01 manual tetap BELUM DIUJI**. R01–R09 manual, P02–P03, checklist tiga OS,
+  runtime Windows/macOS native, installer, dan gerbang M1/M2/M3 belum ditutup.
+
 ## Update 27 Oktober 2026 — M2: R09 migrasi v1/localStorage
 
 - Commit `3d40737`, CI `40435271501`: **8/8 kelompok native tunggal dan 9/9

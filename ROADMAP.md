@@ -148,6 +148,15 @@ request privat ditolak, termasuk setelah redirect/DNS resolution.
 **Catatan:** M3 dapat dikerjakan setelah fondasi M1 stabil, tetapi harus selesai
 sebelum mengklaim privasi jaringan yang ditegakkan oleh CSP.
 
+**Kemajuan 27 Oktober 2026:** commit `ec9f918`, CI `40437798044` menambahkan
+oracle HTTPS native untuk P01. Run `40437382967` menemukan dua request sebelum
+izin karena URL remote diberikan ke `super.create()` sebelum placeholder dipasang.
+Perbaikan memberikan placeholder ke blot dasar sejak awal; run final membuktikan
+nol request sebelum izin dan hanya path visual yang diizinkan setelahnya, tanpa
+request raw/srcset/CSS. Regresi unit bertambah menjadi 173 tes. Bukti ini otomatis
+Linux saja: P01 manual, P02–P03, hardening unduhan Rust/CSP, dan gerbang M3 tetap
+terbuka.
+
 ## M4 — Build reproducible dan kesiapan distribusi
 
 **Tujuan:** orang lain dapat membangun dan memasang versi yang sama.

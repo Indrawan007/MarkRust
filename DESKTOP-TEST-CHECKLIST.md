@@ -21,7 +21,7 @@ Gunakan dokumen sintetis dan folder uji, bukan berkas kerja satu-satunya.
 
 ## Bukti otomatis native Linux (tidak mengubah tabel manual)
 
-Commit `3d40737`, [CI `40435271501`](https://github.com/Indrawan007/MarkRust/actions/runs/40435271501),
+Commit `ec9f918`, [CI `40437798044`](https://github.com/Indrawan007/MarkRust/actions/runs/40437798044),
 27 Oktober 2026: langkah **Validasi WebView Tauri native (Linux/Xvfb)** dan
 **Validasi dua proses Tauri native (Linux/Xvfb)** PASS pada runner
 `ubuntu-24.04`, binary Tauri + WebKitGTK melalui `tauri-driver` 2.1.0 dan
@@ -45,20 +45,26 @@ versi manual yang sudah diverifikasi.
 | A13 | R08: dua sesi A/B + sparse filler tepat 256 MiB → write A ditolak dengan error, editor/dirty dan seluruh snapshot/file asli tetap; filler dilepas → flush berhasil, error hilang, dirty tetap, B identik | PASS; `r08-evidence.json`, screenshot `r08-01-quota-rejected.png`, `r08-02-write-resumed.png` |
 | A14 | R09: picker v1+v2 → pilih `legacy` → GTK restore → write tetap di v1 tanpa duplikasi v2 → save hanya membersihkan legacy; snapshot/file v2 lain tetap dan kandidatnya masih terdaftar | PASS; `r09-evidence.json`, screenshot `r09-01-v1-and-v2-picker.png` sampai `r09-04-v1-saved-v2-kept.png` |
 | A15 | R09: seed localStorage lama + reload saat sesi B live/terkunci → GTK restore A → satu kandidat disk → save membersihkan hanya disk/localStorage A; editor/snapshot/file B tetap utuh | PASS; `r09-evidence.json`, screenshot `r09-05-localstorage-dialog.png`, `r09-06-localstorage-restored.png`, `r09-07-localstorage-saved-other-kept.png` |
+| A16 | P01: server HTTPS lokal mencatat gambar Markdown/inline/`//host`, raw `srcset`, dan CSS `url()` → nol request sebelum izin → setelah Muat gambar hanya path visual yang diizinkan; raw/srcset/CSS tetap tanpa request | PASS; `p01-network.json`, screenshot `p01-01-blocked-no-requests.png`, `p01-02-authorized-requests-only.png` |
 
 Artefak run: `native-webview-linux` (screenshot WebView/X11 + log driver,
 retensi 7 hari). Pada skenario yang membuka dokumen, hanya pemilihan path
 pada dialog Buka yang distub; perintah `read_document`, `write_document`,
 recovery/`select_recovery`, serializer, picker/dialog restore, dan state UI
 nyata. Screenshot serta isi `r02-measurement.json`, `r05-evidence.json`,
-`r06-evidence.json`, `r07-evidence.json`, `r08-evidence.json`, dan
-`r09-evidence.json` tidak diinspeksi di sandbox karena host unduhan artefak
-eksternal tidak dapat diakses; keberhasilan A01–A15 berasal dari assertion CI.
-Selisih token R02 adalah pengukuran sampel, bukan klaim nol kehilangan.
+`r06-evidence.json`, `r07-evidence.json`, `r08-evidence.json`,
+`r09-evidence.json`, dan `p01-network.json` tidak diinspeksi di sandbox karena
+host unduhan artefak eksternal tidak dapat diakses; keberhasilan A01–A16 berasal
+dari assertion CI. Selisih token R02 adalah pengukuran sampel, bukan klaim nol
+kehilangan. Pada A16 hanya sesi automation yang menerima sertifikat self-signed
+lokal; CSP/TLS produksi tidak diubah. Run `40437382967` sebelumnya FAIL karena
+blot dasar memicu dua request sebelum izin; perbaikan `ec9f918` adalah bagian
+dari bukti run final, bukan penghapusan riwayat kegagalan.
 
-Bukti ini **tidak** menandai F01/F02/F09/R01/R02/R03/R04/R05/R06/R07/R08/R09 atau
-kasus manual lain sebagai PASS. R01–R09 otomatis hanya lulus pada Linux/WebKitGTK; interaksi
-manual lintas OS, window controls, network inspector, installer, serta runtime
+Bukti ini **tidak** menandai F01/F02/F09/R01/R02/R03/R04/R05/R06/R07/R08/R09/P01
+atau kasus manual lain sebagai PASS. R01–R09 dan P01 otomatis hanya lulus pada
+Linux/WebKitGTK; interaksi manual lintas OS, window controls, network inspector,
+installer, serta runtime
 native Windows/macOS masih harus diuji terpisah.
 
 ## Matriks kasus wajib (ulangi pada tiap OS)
