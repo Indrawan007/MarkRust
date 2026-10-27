@@ -1,5 +1,29 @@
 # Laporan status & handoff MarkRust
 
+## Update 27 Oktober 2026 — M2: R06 race lock recovery
+
+- Commit `a6e3aac`, CI `40432064383`: **6/6 kelompok native tunggal dan 6/6
+  kelompok multi-instance Linux/WebKitGTK lulus**. Hanya harness berubah; kode
+  produksi tidak diubah.
+- Tiga stale session A/B/C dibuat melalui tiga aplikasi nyata. Dua penantang baru
+  mengadopsi C lalu B, sehingga keduanya tetap melihat kandidat bersama A pada
+  picker. Kedua WebDriver kemudian mengklik A secara konkuren.
+- Pemenang ditentukan dari state hasil race, bukan diasumsikan. Tepat satu
+  instance memperoleh lock kandidat A dan membuka dialog restore GTK. Instance
+  yang kalah menampilkan indikator kegagalan recovery, tidak membuka restore
+  palsu, serta mempertahankan editor/path/dirty seperti sebelum race.
+- Setelah GTK Yes, pemenang memulihkan Markdown/path/dirty A tanpa marker B/C.
+  Ketiga snapshot awal tetap ada dan identik; file tambahan hanya boleh muncul
+  pada session A yang dimenangkan. Ketiga file asli tetap identik.
+- `r06-evidence.json` serta screenshot picker/dialog/pemenang/kalah tersimpan
+  pada artefak `native-webview-linux` ID `12702652548`; isi visual/JSON belum
+  diinspeksi dari sandbox karena host unduhan eksternal tidak dapat diakses.
+  Kelulusan berasal dari assertion CI.
+- Node 172 tes, Chromium 4 kelompok, dan build/test Rust tiga OS juga lulus;
+  bundel rilis skipped. **R06 manual tetap BELUM DIUJI**; R01–R05 manual dan
+  M1/M2 belum ditutup. R07–R09, checklist tiga OS, runtime Windows/macOS native,
+  network inspector native, dan installer tetap terbuka.
+
 ## Update 27 Oktober 2026 — M2: R05 picker beberapa recovery
 
 - Commit `a306044`, CI `40431135910`: **6/6 kelompok native tunggal dan 5/5

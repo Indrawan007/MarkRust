@@ -93,6 +93,14 @@ skenario kedua, Nanti saja tidak mengubah editor dan seluruh file snapshot
 tetap identik; dua kandidat masih terdaftar. Bukti ini otomatis Linux saja;
 R05 manual, R06, checklist tiga OS, dan gerbang M1/M2 tetap terbuka.
 
+Lanjutan pada commit `a6e3aac`, CI `40432064383`: R06 membuat tiga stale session
+dan dua penantang yang sama-sama memilih kandidat A secara konkuren. Tepat satu
+instance memperoleh lock dan memulihkan A melalui dialog GTK; yang kalah
+menampilkan error tanpa mengubah editor/path/dirty. Semua snapshot awal dan file
+asli tetap identik, dan versi baru hanya boleh muncul pada session A pemenang.
+Bukti ini otomatis Linux saja; R06 manual, R07–R09, checklist tiga OS, dan
+gerbang M1/M2 tetap terbuka.
+
 ## M3 — Privasi gambar ditegakkan lintas lapisan (prioritas tinggi)
 
 **Tujuan:** hilangkan izin gambar jaringan langsung dari CSP tanpa membuka

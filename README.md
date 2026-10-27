@@ -156,7 +156,16 @@ menampilkan dua path, kandidat yang tidak diadopsi dipilih melalui tombol nyata
 dan dikonfirmasi lewat GTK, serta snapshot kandidat lain diverifikasi identik.
 Pada proses berikutnya, tombol Nanti saja dipilih dan seluruh file snapshot
 sebelum/sesudah harus tetap identik. Ringkasan disimpan di `r05-evidence.json`.
-Seluruh harness di atas lulus pada CI `40431135910` untuk commit `a306044`.
+
+R06 membuat tiga stale session. Dua penantang mengadopsi kandidat C lalu B,
+tetap melihat kandidat bersama A, dan mengklik A secara konkuren melalui dua
+WebDriver. Pemenang ditentukan dari hasil nyata: tepat satu instance memperoleh
+lock dan membuka dialog GTK, sedangkan yang kalah menampilkan error tanpa
+mengubah editor/path/dirty. Pemenang harus memulihkan isi/path/dirty A; semua
+snapshot awal dan file asli tetap identik, dan versi baru hanya boleh ditambahkan
+pada session A yang dimenangkan. Ringkasan disimpan di `r06-evidence.json`.
+Seluruh harness di atas lulus pada CI `40432064383` untuk commit `a6e3aac`:
+6/6 kelompok native tunggal dan 6/6 kelompok multi-instance.
 
 Pemeriksaan ini berjalan pada job Rust/Linux CI (`ubuntu-24.04`) sebagai bagian
 M2. Interaksi restore/picker dan dua proses dilakukan otomatis, bukan pengujian
