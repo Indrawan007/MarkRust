@@ -323,6 +323,20 @@ async function readSnapshotMap() {
   return Object.fromEntries(rows);
 }
 
+async function readLegacySnapshotMap() {
+  const legacyDir = path.join(sharedData, 'com.markrust.app', 'recovery-v1');
+  const files = await fs.readdir(legacyDir, { withFileTypes: true }).catch((error) => {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  });
+  const rows = [];
+  for (const file of files.filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
+    .sort((a, b) => a.name.localeCompare(b.name))) {
+    rows.push([file.name, await fs.readFile(path.join(legacyDir, file.name), 'utf8')]);
+  }
+  return Object.fromEntries(rows);
+}
+
 async function fileTreeUsage(dir) {
   const entries = await fs.readdir(dir, { withFileTypes: true }).catch((error) => {
     if (error.code === 'ENOENT') return [];
@@ -980,6 +994,246 @@ try {
     await fs.writeFile(path.join(artifactDir, 'r08-evidence.json'), JSON.stringify(evidence, null, 2) + '\n', 'utf8');
     await quotaA.screenshot('r08-02-write-resumed.png');
     await quotaA.stop();
+  });
+
+  const r09Evidence = {};
+  await step('R09: recovery v1 dipilih dan disimpan tanpa menghapus draf v2 lain', async () => {
+    await expectPids(0, 'semua proses R08 sudah berhenti');
+    sharedData = path.join(tempRoot, 'shared-data-r09-v1');
+    await fs.mkdir(sharedData, { recursive: true });
+    const v2Path = path.join(tempRoot, 'migrasi v2 Ω.md');
+    const legacyPath = path.join(tempRoot, 'migrasi v1 Ω.md');
+    const v2Source = '# Draf v2 lain\n\nIsi asli v2.\n';
+    const legacySource = '# Berkas v1\n\nIsi asli berkas v1.\n';
+    const v2Marker = 'Snapshot v2 yang tidak boleh dihapus Ω.';
+    const legacyMarkdown = '# Recovery v1 lama\n\nDraf lama v1 berhasil dipulihkan Ω.\n';
+    await fs.writeFile(v2Path, v2Source, 'utf8');
+    await fs.writeFile(legacyPath, legacySource, 'utf8');
+
+    const maker = await launch('R09-v2-maker', 4472, 4473);
+    const makerPid = (await expectPids(1, 'PID pembuat draf v2 R09'))[0];
+    assert.deepEqual(await maker.openFile(v2Path), { result: true, path: v2Path, markdown: v2Source });
+    await maker.edit(v2Marker);
+    const v2Draft = await maker.recovery(v2Marker);
+    assert.equal(v2Draft.path, v2Path);
+    await killPid(makerPid);
+    maker.sessionId = '';
+    await maker.stop();
+    await expectPids(0, 'pembuat draf v2 R09 berhenti');
+    const beforeV2 = await readSnapshotMap();
+    const v2Keys = Object.keys(beforeV2);
+    assert.equal(v2Keys.length, 1, JSON.stringify(v2Keys));
+    const v2Session = v2Keys[0].split('/')[0];
+    assert.equal(JSON.parse(beforeV2[v2Keys[0]]).markdown, v2Draft.markdown);
+
+    // Fixture format lama dibuat di host; aplikasi tetap harus mengunci,
+    // menawarkan, membaca, dan menuliskannya melalui implementasi nyata.
+    const legacyDir = path.join(sharedData, 'com.markrust.app', 'recovery-v1');
+    await fs.mkdir(legacyDir, { recursive: true });
+    const legacyDraft = { version: 1, markdown: legacyMarkdown, path: legacyPath, savedAt: 1700000000000 };
+    const legacyRaw = JSON.stringify(legacyDraft);
+    const legacyName = '000000000000000000000000000000000000001-1.json';
+    await fs.writeFile(path.join(legacyDir, legacyName), legacyRaw, 'utf8');
+    const beforeLegacy = await readLegacySnapshotMap();
+    assert.deepEqual(beforeLegacy, { [legacyName]: legacyRaw });
+
+    const challenger = await launch('R09-v1-picker', 4474, 4475);
+    await expectPids(1, 'PID pemilih recovery v1');
+    await waitForPicker(challenger, [v2Path, legacyPath], 'picker v1 dan v2');
+    await challenger.screenshot('r09-01-v1-and-v2-picker.png');
+    const picker = await challenger.pickerState();
+    const legacyIndex = picker.buttons.findIndex((text) => text.startsWith(legacyPath));
+    assert.ok(legacyIndex >= 0, JSON.stringify(picker));
+    await challenger.click(`#recovery-list button:nth-child(${legacyIndex + 1})`);
+    await waitFor('dialog GTK untuk kandidat legacy', async () => visibleRestoreDialogs().length === 1, 15000);
+
+    const selected = JSON.parse(await challenger.invoke('read_recovery'));
+    assert.equal(selected.path, legacyPath);
+    assert.equal(selected.markdown, legacyMarkdown);
+    const candidates = JSON.parse(await challenger.invoke('list_recoveries'));
+    assert.equal(candidates.length, 2, JSON.stringify(candidates));
+    assert.deepEqual(candidates.map((row) => row.id).sort(), [v2Session, 'legacy'].sort());
+    assert.deepEqual(await readSnapshotMap(), beforeV2, 'Pemilihan v1 tidak boleh menyalin/menghapus v2');
+    assert.deepEqual(await readLegacySnapshotMap(), beforeLegacy);
+    assert.equal(await fs.readFile(v2Path, 'utf8'), v2Source);
+    assert.equal(await fs.readFile(legacyPath, 'utf8'), legacySource);
+    await confirmRestoreDialog({
+      label: 'dialog restore recovery v1',
+      screenshotName: 'r09-02-v1-restore-dialog.png',
+      windowReportName: 'r09-v1-x11-windows.txt'
+    });
+
+    const restored = await waitFor('recovery v1 masuk editor', async () => {
+      const state = await challenger.state();
+      return state.path === legacyPath && state.dirty && state.markdown === legacyMarkdown ? state : false;
+    }, 10000);
+    assert.doesNotMatch(restored.markdown, /Snapshot v2 yang tidak boleh dihapus/);
+    assert.equal(await fs.readFile(v2Path, 'utf8'), v2Source);
+    assert.equal(await fs.readFile(legacyPath, 'utf8'), legacySource);
+
+    // Biarkan write pasca-restore selesai: versi baru harus tetap berada di
+    // recovery-v1, bukan diduplikasi ke session v2 yang lain.
+    await waitFor('snapshot v1 pasca-restore selesai ditulis', async () => {
+      const current = await readLegacySnapshotMap();
+      return Object.keys(current).length > Object.keys(beforeLegacy).length ? current : false;
+    }, 5000);
+    const afterLegacy = await readLegacySnapshotMap();
+    for (const [key, raw] of Object.entries(beforeLegacy)) {
+      assert.equal(afterLegacy[key], raw, `Snapshot legacy awal berubah/hilang: ${key}`);
+    }
+    const legacyAdditions = Object.keys(afterLegacy).filter((key) => !(key in beforeLegacy));
+    assert.equal(legacyAdditions.length, 1, JSON.stringify(legacyAdditions));
+    assert.equal(JSON.parse(afterLegacy[legacyAdditions[0]]).markdown, legacyMarkdown);
+    assert.deepEqual(await readSnapshotMap(), beforeV2, 'Draf v2 lain harus tetap identik setelah restore v1');
+    await challenger.screenshot('r09-03-v1-restored-v2-preserved.png');
+
+    const saved = await challenger.save();
+    assert.equal(saved.result, true, JSON.stringify(saved));
+    assert.equal(saved.dirty, false, JSON.stringify(saved));
+    assert.equal(saved.path, legacyPath, JSON.stringify(saved));
+    assert.equal(await fs.readFile(legacyPath, 'utf8'), legacyMarkdown);
+    await waitFor('recovery legacy bersih setelah save', async () => (await challenger.invoke('read_recovery')) === null, 5000);
+    assert.deepEqual(await readLegacySnapshotMap(), {}, 'Save hanya boleh membersihkan kandidat legacy');
+    assert.deepEqual(await readSnapshotMap(), beforeV2, 'Save v1 tidak boleh menghapus draf v2 lain');
+    assert.equal(await fs.readFile(v2Path, 'utf8'), v2Source);
+    const remaining = JSON.parse(await challenger.invoke('list_recoveries'));
+    assert.equal(remaining.length, 1, JSON.stringify(remaining));
+    assert.equal(remaining[0].id, v2Session, JSON.stringify(remaining));
+    assert.equal(remaining[0].path, v2Path, JSON.stringify(remaining));
+    await challenger.screenshot('r09-04-v1-saved-v2-kept.png');
+
+    r09Evidence.v1 = {
+      candidatesOffered: 2,
+      selectedId: 'legacy',
+      restored: true,
+      additionalLegacySnapshots: legacyAdditions,
+      v2SnapshotUnchangedAfterRestore: true,
+      selectedSaveClearedLegacy: true,
+      v2SnapshotUnchangedAfterSave: true,
+      originalV2FileUnchanged: true
+    };
+    await challenger.stop();
+  });
+
+  await step('R09: localStorage lama dipulihkan tanpa mengganggu sesi live lain', async () => {
+    assert.ok(r09Evidence.v1, 'Skenario recovery v1 harus selesai lebih dahulu');
+    await expectPids(0, 'semua proses recovery v1 sudah berhenti');
+    sharedData = path.join(tempRoot, 'shared-data-r09-storage');
+    await fs.mkdir(sharedData, { recursive: true });
+    const otherPath = path.join(tempRoot, 'localStorage sesi lain Ω.md');
+    const storagePath = path.join(tempRoot, 'localStorage lama Ω.md');
+    const otherSource = '# Sesi live lain\n\nIsi asli sesi lain.\n';
+    const storageSource = '# Berkas localStorage\n\nIsi asli localStorage.\n';
+    const otherMarker = 'Snapshot live lain tetap utuh Ω.';
+    const storageMarkdown = '# LocalStorage lama\n\nDraf localStorage berhasil dipulihkan Ω.\n';
+    await fs.writeFile(otherPath, otherSource, 'utf8');
+    await fs.writeFile(storagePath, storageSource, 'utf8');
+
+    const other = await launch('R09-storage-other', 4476, 4477);
+    await expectPids(1, 'PID sesi live lain R09');
+    assert.deepEqual(await other.openFile(otherPath), { result: true, path: otherPath, markdown: otherSource });
+    await other.edit(otherMarker);
+    const otherDraft = await other.recovery(otherMarker);
+    assert.equal(otherDraft.path, otherPath);
+    const beforeOther = await readSnapshotMap();
+    const otherKeys = Object.keys(beforeOther);
+    assert.equal(otherKeys.length, 1, JSON.stringify(otherKeys));
+    const otherSession = otherKeys[0].split('/')[0];
+    assert.equal(JSON.parse(beforeOther[otherKeys[0]]).markdown, otherDraft.markdown);
+
+    // B tetap hidup sehingga session-nya terkunci dan tidak diadopsi A. A
+    // mempunyai session disk kosong, sehingga fallback localStorage diuji.
+    const storage = await launch('R09-storage-restore', 4478, 4479);
+    await expectPids(2, 'A dan sesi live lain R09');
+    await delay(800); // Biarkan restore awal A yang kosong selesai sebelum seed/reload.
+    assert.deepEqual(visibleRestoreDialogs(), [], 'A tidak boleh memulihkan session B yang terkunci');
+    assert.deepEqual(await readSnapshotMap(), beforeOther);
+    const storageDraft = { version: 1, markdown: storageMarkdown, path: storagePath, savedAt: 1700000001000 };
+    const storageRaw = JSON.stringify(storageDraft);
+    const stored = await storage.execute(`
+      localStorage.setItem(window.MarkRust.draftKey, arguments[0]);
+      const raw = localStorage.getItem(window.MarkRust.draftKey);
+      window.__r09StorageBeforeReload = true;
+      setTimeout(() => window.location.reload(), 50);
+      return raw;
+    `, [storageRaw]);
+    assert.equal(stored, storageRaw);
+    await waitFor('WebView selesai reload untuk localStorage lama', () => storage.execute(
+      'return !!(window.MarkRust && window.__TAURI__ && window.MarkRust.isCloseHandlerRegistered()) && !window.__r09StorageBeforeReload;'
+    ), 15000);
+    await waitFor('dialog GTK untuk localStorage lama', async () => visibleRestoreDialogs().length === 1, 15000);
+
+    const storedBeforeRestore = await storage.execute(
+      'return localStorage.getItem(window.MarkRust.draftKey);'
+    );
+    assert.equal(storedBeforeRestore, storageRaw);
+    assert.equal(await storage.invoke('read_recovery'), null,
+      'Jalur localStorage harus dimulai tanpa snapshot disk milik A');
+    assert.deepEqual(await readSnapshotMap(), beforeOther);
+    assert.equal(await fs.readFile(otherPath, 'utf8'), otherSource);
+    assert.equal(await fs.readFile(storagePath, 'utf8'), storageSource);
+    await confirmRestoreDialog({
+      label: 'dialog restore localStorage lama',
+      screenshotName: 'r09-05-localstorage-dialog.png',
+      windowReportName: 'r09-localstorage-x11-windows.txt'
+    });
+
+    const restored = await waitFor('localStorage lama masuk editor setelah reload', async () => {
+      const state = await storage.state();
+      return state.path === storagePath && state.dirty && state.markdown === storageMarkdown ? state : false;
+    }, 10000);
+    assert.doesNotMatch(restored.markdown, /Snapshot live lain tetap utuh/);
+    assert.equal(await storage.execute('return localStorage.getItem(window.MarkRust.draftKey);'), storageRaw);
+    assert.equal(await fs.readFile(otherPath, 'utf8'), otherSource);
+    assert.equal(await fs.readFile(storagePath, 'utf8'), storageSource);
+
+    const diskDraft = await storage.recovery('Draf localStorage berhasil dipulihkan');
+    assert.equal(diskDraft.path, storagePath);
+    assert.equal(diskDraft.markdown, storageMarkdown);
+    const afterMigration = await readSnapshotMap();
+    for (const [key, raw] of Object.entries(beforeOther)) {
+      assert.equal(afterMigration[key], raw, `Snapshot sesi live lain berubah: ${key}`);
+    }
+    const additions = Object.keys(afterMigration).filter((key) => !(key in beforeOther));
+    assert.equal(additions.length, 1, JSON.stringify(additions));
+    const storageSession = additions[0].split('/')[0];
+    assert.notEqual(storageSession, otherSession);
+    const diskCandidates = JSON.parse(await storage.invoke('list_recoveries'));
+    assert.equal(diskCandidates.length, 1, JSON.stringify(diskCandidates));
+    assert.equal(diskCandidates[0].id, storageSession, JSON.stringify(diskCandidates));
+    assert.equal(diskCandidates[0].path, storagePath, JSON.stringify(diskCandidates));
+    assert.equal(await storage.execute('return localStorage.getItem(window.MarkRust.draftKey);'), storageRaw);
+    await storage.screenshot('r09-06-localstorage-restored.png');
+
+    const saved = await storage.save();
+    assert.equal(saved.result, true, JSON.stringify(saved));
+    assert.equal(saved.dirty, false, JSON.stringify(saved));
+    assert.equal(saved.path, storagePath, JSON.stringify(saved));
+    assert.equal(await fs.readFile(storagePath, 'utf8'), storageMarkdown);
+    await waitFor('recovery disk localStorage bersih setelah save', async () => (await storage.invoke('read_recovery')) === null, 5000);
+    assert.equal(await storage.execute('return localStorage.getItem(window.MarkRust.draftKey);'), null);
+    assert.deepEqual(await readSnapshotMap(), beforeOther,
+      'Save hasil localStorage hanya boleh membersihkan session miliknya');
+    assert.equal(await fs.readFile(otherPath, 'utf8'), otherSource);
+    const otherState = await other.state();
+    assert.equal(otherState.path, otherPath, JSON.stringify(otherState));
+    assert.equal(otherState.dirty, true, JSON.stringify(otherState));
+    assert.equal(otherState.markdown, (await other.recovery(otherMarker)).markdown);
+    await storage.screenshot('r09-07-localstorage-saved-other-kept.png');
+
+    r09Evidence.localStorage = {
+      offeredAfterReload: true,
+      restored: true,
+      additionalDiskSession: storageSession,
+      singleDiskCandidateAfterRestore: true,
+      otherLiveSnapshotUnchanged: true,
+      saveClearedOwnDiskAndLocalStorage: true,
+      otherSnapshotUnchangedAfterSave: true,
+      otherEditorUnchanged: true
+    };
+    await fs.writeFile(path.join(artifactDir, 'r09-evidence.json'), JSON.stringify(r09Evidence, null, 2) + '\n', 'utf8');
+    await storage.stop();
+    await other.stop();
   });
 } catch (error) {
   failure = error;
