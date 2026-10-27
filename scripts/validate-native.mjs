@@ -208,10 +208,13 @@ async function findAppPids() {
   return pids;
 }
 
-async function forceKillApp() {
-  const pids = await findAppPids();
-  assert.equal(pids.length, 1, `Harus ada tepat satu proses MarkRust untuk data uji; ditemukan: ${pids.join(', ')}`);
-  const pid = pids[0];
+async function forceKillApp(knownPid = null) {
+  let pid = knownPid;
+  if (pid === null) {
+    const pids = await findAppPids();
+    assert.equal(pids.length, 1, `Harus ada tepat satu proses MarkRust untuk data uji; ditemukan: ${pids.join(', ')}`);
+    pid = pids[0];
+  }
   process.kill(pid, 'SIGKILL');
   sessionId = ''; // Sesi WebDriver untuk proses itu tidak dapat dipakai lagi.
   await waitFor(`proses MarkRust ${pid} berhenti`, async () => {
@@ -248,15 +251,18 @@ function captureX11(name) {
   x11('scrot', ['--overwrite', path.join(artifactDir, name)]);
 }
 
-async function confirmRestoreDialog() {
+async function confirmRestoreDialog({
+  screenshotName = '04b-native-recovery-dialog.png',
+  windowReportName = 'restore-x11-windows.txt'
+} = {}) {
   const dialogId = await waitFor('dialog restore GTK terlihat', async () => {
     const ids = x11('xdotool', ['search', '--onlyvisible', '--name', 'Pulihkan draf'])
       .split(/\s+/).filter(Boolean);
     assert.equal(ids.length, 1, `Jendela dialog restore harus tunggal: ${ids.join(', ')}`);
     return ids[0];
   }, 15000);
-  await fs.writeFile(path.join(artifactDir, 'restore-x11-windows.txt'), x11WindowReport(), 'utf8');
-  captureX11('04b-native-recovery-dialog.png');
+  await fs.writeFile(path.join(artifactDir, windowReportName), x11WindowReport(), 'utf8');
+  captureX11(screenshotName);
   x11('xdotool', ['windowfocus', '--sync', dialogId]);
   // GTK stock button Yes memiliki mnemonic Alt+Y pada locale CI (C.UTF-8).
   x11('xdotool', ['key', '--clearmodifiers', 'alt+y']);
@@ -456,6 +462,161 @@ try {
     assert.equal(await fs.readFile(crashPath, 'utf8'), beforeDraft.markdown);
     await waitFor('recovery dibersihkan setelah hasil restore disimpan', async () => (await invoke('read_recovery')) === null, 5000);
     await screenshot('06-native-recovery-saved.png');
+    skipSessionCleanup = false;
+  });
+
+  await step('R02: max-wait saat mengetik kontinu, force-kill, dan restore', async () => {
+    const crashPath = await execute('return window.MarkRust.getPath();');
+    const savedOnDisk = await fs.readFile(crashPath, 'utf8');
+    const initialPids = await findAppPids();
+    assert.equal(initialPids.length, 1, JSON.stringify(initialPids));
+    const firstPid = initialPids[0];
+    skipSessionCleanup = true;
+
+    // Token user-source terus masuk setiap 40 ms. Interval tidak dihentikan
+    // saat snapshot dibaca atau saat proses di-kill.
+    await execute(`
+      const q = window.MarkRust.quill;
+      const state = window.__r02Continuous = {
+        startedAt: performance.now(), lastTickAt: null, maxGapMs: 0,
+        seq: 0, typing: true, error: '', timer: null
+      };
+      state.timer = setInterval(() => {
+        const now = performance.now();
+        if (state.lastTickAt !== null) state.maxGapMs = Math.max(state.maxGapMs, now - state.lastTickAt);
+        state.lastTickAt = now;
+        try {
+          state.seq += 1;
+          q.insertText(q.getLength() - 1, (state.seq === 1 ? '\\n' : ' ') + 'R02-' + state.seq, 'user');
+        } catch (error) {
+          state.error = String(error);
+          state.typing = false;
+          clearInterval(state.timer);
+        }
+      }, 40);
+    `);
+
+    const readSample = async () => {
+      const sample = await executeAsync(`
+        const done = arguments[arguments.length - 1];
+        const state = window.__r02Continuous;
+        if (!state) { done({ error: 'controller R02 tidak ditemukan' }); return; }
+        window.__TAURI__.core.invoke('read_recovery').then(raw => done({
+          raw,
+          typing: state.typing,
+          controllerError: state.error,
+          seq: state.seq,
+          elapsedMs: performance.now() - state.startedAt,
+          maxGapMs: state.maxGapMs,
+          markdown: window.MarkRust.getMarkdown()
+        }), error => done({ error: String(error) }));
+      `);
+      if (sample?.error) throw new Error(`R02: ${sample.error}`);
+      if (sample?.controllerError) throw new Error(`R02 controller: ${sample.controllerError}`);
+      return { ...sample, draft: sample.raw ? JSON.parse(sample.raw) : null };
+    };
+    const sequenceOf = (markdown) => {
+      let highest = 0;
+      for (const match of markdown.matchAll(/R02-(\d+)/g)) highest = Math.max(highest, Number(match[1]));
+      return highest;
+    };
+
+    const first = await waitFor('snapshot muncul sementara token terus masuk', async () => {
+      const sample = await readSample();
+      return sample.typing && sample.draft && sequenceOf(sample.draft.markdown) > 0 ? sample : false;
+    }, 8000);
+    assert.ok(first.maxGapMs < 700, `Ada jeda pengetikan >=700 ms: ${JSON.stringify(first)}`);
+    const firstPersistedSequence = sequenceOf(first.draft.markdown);
+    assert.ok(firstPersistedSequence >= 1);
+
+    const last = await waitFor('pengetikan kontinu melewati batas 3 detik', async () => {
+      const sample = await readSample();
+      return sample.typing && sample.draft && sample.elapsedMs >= 3600 && sample.seq >= 50 ? sample : false;
+    }, 6000);
+    assert.ok(last.maxGapMs < 700, `Ada jeda pengetikan >=700 ms: ${JSON.stringify(last)}`);
+    assert.equal(last.draft.path, crashPath);
+    const observedSequence = sequenceOf(last.markdown);
+    const persistedSequence = sequenceOf(last.draft.markdown);
+    assert.equal(observedSequence, last.seq, 'Token editor harus berurutan sampai sampel terakhir');
+    assert.ok(persistedSequence >= 1 && persistedSequence <= observedSequence,
+      JSON.stringify({ persistedSequence, observedSequence }));
+    const measurement = {
+      firstSnapshot: {
+        elapsedMs: Math.round(first.elapsedMs),
+        editorSequence: first.seq,
+        persistedSequence: firstPersistedSequence,
+        maxTypingGapMs: Math.round(first.maxGapMs)
+      },
+      preKillSample: {
+        elapsedMs: Math.round(last.elapsedMs),
+        editorSequence: observedSequence,
+        persistedSequence,
+        observedTailMarkersNotInSnapshot: observedSequence - persistedSequence,
+        maxTypingGapMs: Math.round(last.maxGapMs),
+        snapshotSavedAt: last.draft.savedAt
+      }
+    };
+    const writeMeasurement = () => fs.writeFile(
+      path.join(artifactDir, 'r02-measurement.json'), JSON.stringify(measurement, null, 2) + '\n', 'utf8'
+    );
+    await writeMeasurement();
+
+    assert.equal(await forceKillApp(firstPid), firstPid);
+    await restartDriverAndSession();
+    await waitFor('instance R02 baru setelah restart', () => execute(
+      'return !!(window.MarkRust && window.__TAURI__ && window.MarkRust.isCloseHandlerRegistered());'
+    ));
+    const secondPids = await findAppPids();
+    assert.equal(secondPids.length, 1, JSON.stringify(secondPids));
+    assert.notEqual(secondPids[0], firstPid, 'R02 harus memakai proses OS baru');
+
+    const afterDraft = await waitFor('snapshot R02 terbaca dari instance baru', async () => {
+      const recovery = await invoke('read_recovery');
+      if (!recovery) return false;
+      const value = JSON.parse(recovery);
+      return sequenceOf(value.markdown) >= 1 ? value : false;
+    }, 10000);
+    assert.equal(afterDraft.path, crashPath);
+    assert.equal(afterDraft.markdown, last.draft.markdown);
+    const rows = JSON.parse(await invoke('list_recoveries'));
+    assert.equal(rows.length, 1, JSON.stringify(rows));
+    assert.equal(rows[0].path, crashPath);
+    assert.equal(await fs.readFile(crashPath, 'utf8'), savedOnDisk);
+    await screenshot('07-r02-recovery-restart.png');
+    await confirmRestoreDialog({
+      screenshotName: '07b-r02-recovery-dialog.png',
+      windowReportName: 'r02-restore-x11-windows.txt'
+    });
+    const restored = await waitFor('snapshot R02 dipulihkan lewat dialog Yes', async () => {
+      const state = await execute(`return {
+        path: window.MarkRust.getPath(), dirty: window.MarkRust.isDirty(),
+        markdown: window.MarkRust.getMarkdown(), title: document.title
+      };`);
+      return state.path === crashPath && state.dirty && state.markdown === last.draft.markdown ? state : false;
+    }, 10000);
+    assert.match(restored.title, /●/);
+    assert.equal(await fs.readFile(crashPath, 'utf8'), savedOnDisk);
+    measurement.restore = { matchesPreKillSnapshot: true, fileUnchangedBeforeSave: true };
+    await writeMeasurement();
+    await screenshot('08-r02-restored.png');
+
+    const recoveredSave = await executeAsync(`
+      const done = arguments[arguments.length - 1];
+      window.MarkRust.saveDocument(false).then(
+        result => done({ result, dirty: window.MarkRust.isDirty(), path: window.MarkRust.getPath() }),
+        error => done({ error: String(error) })
+      );
+    `);
+    if (recoveredSave?.error) throw new Error(recoveredSave.error);
+    assert.equal(recoveredSave.result, true, JSON.stringify(recoveredSave));
+    assert.equal(recoveredSave.dirty, false, JSON.stringify(recoveredSave));
+    assert.equal(recoveredSave.path, crashPath, JSON.stringify(recoveredSave));
+    assert.equal(await fs.readFile(crashPath, 'utf8'), last.draft.markdown);
+    await waitFor('recovery R02 bersih setelah simpan', async () => (await invoke('read_recovery')) === null, 5000);
+    measurement.save = { restoredContentWritten: true, recoveryCleared: true };
+    await writeMeasurement();
+    console.log('Pengukuran R02:', JSON.stringify(measurement));
+    await screenshot('09-r02-saved.png');
     skipSessionCleanup = false;
   });
 } catch (error) {
