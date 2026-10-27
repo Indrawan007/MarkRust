@@ -1,5 +1,30 @@
 # Laporan status & handoff MarkRust
 
+## Update 27 Oktober 2026 — M2: R07 snapshot rusak dan fallback
+
+- Commit `a4293ed`, CI `40432859739`: **8/8 kelompok native tunggal dan 6/6
+  kelompok multi-instance Linux/WebKitGTK lulus**. Hanya harness berubah; kode
+  produksi tidak diubah.
+- Dua snapshot berbeda dibuat, proses dimatikan, lalu file JSON terbaru dirusak
+  dari sisi host. Instance baru membaca dan menawarkan versi sebelumnya; dialog
+  GTK memulihkan Markdown/path/dirty versi tersebut tanpa marker versi terbaru.
+  File asli tetap identik.
+- Snapshot sebelumnya dan snapshot corrupt tetap ada serta byte-identik setelah
+  pembacaan, restore, dan selesainya penulisan snapshot pasca-restore. Ini juga
+  memeriksa bahwa cleanup setelah write tidak menghapus bukti corruption.
+- Pada skenario kedua, semua versi dirusak sebelum restart. Indikator kegagalan
+  recovery terlihat, daftar kandidat kosong, tidak ada picker/dialog restore,
+  path tetap `null`, dan dirty tetap false. Semua file corrupt dan file asli
+  tetap identik setelah pemeriksaan baca ulang.
+- `r07-evidence.json` serta screenshot fallback/dialog/semua-rusak tersimpan
+  pada artefak `native-webview-linux` ID `12702409952`; isi visual/JSON belum
+  diinspeksi dari sandbox karena host unduhan eksternal tidak dapat diakses.
+  Kelulusan berasal dari assertion CI.
+- Node 172 tes, Chromium 4 kelompok, dan build/test Rust tiga OS juga lulus;
+  bundel rilis skipped. **R07 manual tetap BELUM DIUJI**; R01–R06 manual dan
+  M1/M2 belum ditutup. R08–R09, checklist tiga OS, runtime Windows/macOS native,
+  network inspector native, dan installer tetap terbuka.
+
 ## Update 27 Oktober 2026 — M2: R06 race lock recovery
 
 - Commit `a6e3aac`, CI `40432064383`: **6/6 kelompok native tunggal dan 6/6

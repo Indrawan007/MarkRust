@@ -164,8 +164,15 @@ lock dan membuka dialog GTK, sedangkan yang kalah menampilkan error tanpa
 mengubah editor/path/dirty. Pemenang harus memulihkan isi/path/dirty A; semua
 snapshot awal dan file asli tetap identik, dan versi baru hanya boleh ditambahkan
 pada session A yang dimenangkan. Ringkasan disimpan di `r06-evidence.json`.
-Seluruh harness di atas lulus pada CI `40432064383` untuk commit `a6e3aac`:
-6/6 kelompok native tunggal dan 6/6 kelompok multi-instance.
+
+R07 menulis dua versi, merusak JSON terbaru setelah `SIGKILL`, lalu membuktikan
+restart memulihkan versi sebelumnya melalui dialog GTK tanpa memakai marker dari
+versi rusak. Semua snapshot awal, termasuk yang rusak, harus tetap identik setelah
+restore dan penulisan snapshot berikutnya; file asli tidak berubah. Pada skenario
+kedua seluruh versi dirusak: indikator kegagalan harus terlihat, tidak ada kandidat
+atau dialog restore, dan semua file corrupt tetap identik. Ringkasan disimpan di
+`r07-evidence.json`. Seluruh harness di atas lulus pada CI `40432859739` untuk
+commit `a4293ed`: 8/8 kelompok native tunggal dan 6/6 kelompok multi-instance.
 
 Pemeriksaan ini berjalan pada job Rust/Linux CI (`ubuntu-24.04`) sebagai bagian
 M2. Interaksi restore/picker dan dua proses dilakukan otomatis, bukan pengujian

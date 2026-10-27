@@ -101,6 +101,14 @@ asli tetap identik, dan versi baru hanya boleh muncul pada session A pemenang.
 Bukti ini otomatis Linux saja; R06 manual, R07–R09, checklist tiga OS, dan
 gerbang M1/M2 tetap terbuka.
 
+Lanjutan pada commit `a4293ed`, CI `40432859739`: R07 merusak snapshot JSON
+terbaru setelah kill dan membuktikan versi sebelumnya dipulihkan melalui dialog
+GTK. Semua snapshot awal, termasuk yang corrupt, tetap identik setelah restore
+dan penulisan versi berikutnya; file asli tidak berubah. Saat semua versi
+dirusak, aplikasi menampilkan error tanpa kandidat/dialog restore dan tanpa
+menghapus file corrupt. Bukti ini otomatis Linux saja; R07 manual, R08–R09,
+checklist tiga OS, dan gerbang M1/M2 tetap terbuka.
+
 ## M3 — Privasi gambar ditegakkan lintas lapisan (prioritas tinggi)
 
 **Tujuan:** hilangkan izin gambar jaringan langsung dari CSP tanpa membuka
