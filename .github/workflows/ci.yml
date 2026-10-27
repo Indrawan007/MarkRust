@@ -69,9 +69,12 @@ jobs:
         if: runner.os == 'Linux'
         timeout-minutes: 10
         run: |
-          sudo apt-get update -o Acquire::Retries=3
+          sudo apt-get update -o Acquire::Retries=5 \
+            -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30
           sudo env DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=a \
             apt-get install -y --no-install-recommends \
+            -o Acquire::Retries=5 -o Acquire::http::Timeout=30 \
+            -o Acquire::https::Timeout=30 \
             libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf \
             webkit2gtk-driver xvfb xauth xdotool scrot
 
