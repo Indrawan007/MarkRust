@@ -12,6 +12,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const appPath = path.resolve(root, process.env.MARKRUST_NATIVE_APP || 'src-tauri/target/debug/markrust');
 const artifactDir = path.resolve(root, process.env.MARKRUST_NATIVE_ARTIFACTS || '/tmp/markrust-native');
 const driverCommand = process.env.TAURI_DRIVER_PATH || 'tauri-driver';
+const ELEMENT_KEY = 'element-6066-11e4-a52e-4f735466cecf';
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const instances = [];
 const results = [];
@@ -166,6 +167,29 @@ class NativeInstance {
     };`);
   }
 
+  async screenshot(name) {
+    if (!this.sessionId) return;
+    const png = await this.request('GET', `${this.route()}/screenshot`);
+    assert.equal(typeof png, 'string');
+    await fs.writeFile(path.join(artifactDir, name), Buffer.from(png, 'base64'));
+  }
+
+  async click(selector) {
+    const element = await this.request('POST', `${this.route()}/element`, {
+      using: 'css selector', value: selector
+    });
+    const id = element?.[ELEMENT_KEY];
+    assert.ok(id, `${this.name}: elemen tidak ditemukan: ${selector}`);
+    await this.request('POST', `${this.route()}/element/${id}/click`, {});
+  }
+
+  pickerState() {
+    return this.execute(`return {
+      open: document.getElementById('recovery-dialog').open,
+      buttons: Array.from(document.querySelectorAll('#recovery-list button'), button => button.textContent)
+    };`);
+  }
+
   async edit(marker) {
     await this.execute(`
       const q = window.MarkRust.quill;
@@ -240,6 +264,14 @@ async function launch(name, port, nativePort) {
   return instance;
 }
 
+async function waitForPicker(instance, expectedPaths, label = 'picker recovery terlihat') {
+  return waitFor(`${instance.name}: ${label}`, async () => {
+    const state = await instance.pickerState();
+    if (!state.open || state.buttons.length !== expectedPaths.length) return false;
+    return expectedPaths.every((candidate) => state.buttons.some((text) => text.startsWith(candidate))) ? state : false;
+  }, 10000);
+}
+
 async function findAppPids() {
   const expectedExe = await fs.realpath(appPath);
   const expectedEnv = `XDG_DATA_HOME=${sharedData}`;
@@ -261,6 +293,29 @@ async function expectPids(count, label) {
     const pids = await findAppPids();
     return pids.length === count ? pids : false;
   }, 10000);
+}
+
+async function readSnapshotMap() {
+  const rootDir = path.join(sharedData, 'com.markrust.app', 'recovery-v2');
+  const dirs = await fs.readdir(rootDir, { withFileTypes: true }).catch((error) => {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  });
+  const rows = [];
+  for (const dir of dirs.filter((entry) => entry.isDirectory() && entry.name.startsWith('session-'))
+    .sort((a, b) => a.name.localeCompare(b.name))) {
+    const files = await fs.readdir(path.join(rootDir, dir.name), { withFileTypes: true });
+    for (const file of files.filter((entry) => entry.isFile() && entry.name.endsWith('.json'))
+      .sort((a, b) => a.name.localeCompare(b.name))) {
+      const key = `${dir.name}/${file.name}`;
+      rows.push([key, await fs.readFile(path.join(rootDir, dir.name, file.name), 'utf8')]);
+    }
+  }
+  return Object.fromEntries(rows);
+}
+
+function sessionSnapshots(map, id) {
+  return Object.fromEntries(Object.entries(map).filter(([key]) => key.startsWith(`${id}/`)));
 }
 
 async function killPid(pid) {
@@ -295,15 +350,28 @@ function captureX11(name) {
   x11('scrot', ['--overwrite', path.join(artifactDir, name)]);
 }
 
-async function confirmRestoreDialog() {
-  const dialogId = await waitFor('dialog restore B terlihat', async () => {
-    const ids = x11('xdotool', ['search', '--onlyvisible', '--name', 'Pulihkan draf'])
+function visibleRestoreDialogs() {
+  try {
+    return x11('xdotool', ['search', '--onlyvisible', '--name', 'Pulihkan draf'])
       .split(/\s+/).filter(Boolean);
+  } catch (error) {
+    if (error.status === 1) return [];
+    throw error;
+  }
+}
+
+async function confirmRestoreDialog({
+  label = 'dialog restore B terlihat',
+  screenshotName = 'multi-03-b-recovery-dialog.png',
+  windowReportName = 'multi-restore-x11-windows.txt'
+} = {}) {
+  const dialogId = await waitFor(label, async () => {
+    const ids = visibleRestoreDialogs();
     assert.equal(ids.length, 1, `Dialog restore harus tunggal: ${ids.join(', ')}`);
     return ids[0];
   }, 15000);
-  await fs.writeFile(path.join(artifactDir, 'multi-restore-x11-windows.txt'), x11WindowReport(), 'utf8');
-  captureX11('multi-03-b-recovery-dialog.png');
+  await fs.writeFile(path.join(artifactDir, windowReportName), x11WindowReport(), 'utf8');
+  captureX11(screenshotName);
   x11('xdotool', ['windowfocus', '--sync', dialogId]);
   x11('xdotool', ['key', '--clearmodifiers', 'alt+y']);
 }
@@ -407,6 +475,156 @@ try {
     captureX11('multi-04-b-restored-a-intact.png');
     await c.deleteSession();
     await a.deleteSession();
+    await c.stop();
+    await a.stop();
+  });
+
+  const r05PathD = path.join(tempRoot, 'stale D Ω.md');
+  const r05PathE = path.join(tempRoot, 'stale E Ω.md');
+  const r05SourceD = '# Stale D\n\nIsi awal D.\n';
+  const r05SourceE = '# Stale E\n\nIsi awal E.\n';
+  const r05MarkerD = 'Draf stale D yang dipilih Ω.';
+  const r05MarkerE = 'Draf stale E yang dipilih Ω.';
+  const r05Evidence = {};
+  let r05BeforeDefer = null;
+  await fs.writeFile(r05PathD, r05SourceD, 'utf8');
+  await fs.writeFile(r05PathE, r05SourceE, 'utf8');
+
+  await step('R05: pilih satu dari dua stale recovery dan pertahankan kandidat lain', async () => {
+    await expectPids(0, 'semua proses R04 sudah berhenti');
+    const d = await launch('D', 4450, 4451);
+    const pidD = (await expectPids(1, 'PID pembuat stale D'))[0];
+    const e = await launch('E', 4452, 4453);
+    const two = await expectPids(2, 'PID pembuat stale D dan E');
+    const pidE = two.find((pid) => pid !== pidD);
+    assert.ok(pidE && pidE !== pidD, JSON.stringify(two));
+    assert.deepEqual(await d.openFile(r05PathD), { result: true, path: r05PathD, markdown: r05SourceD });
+    assert.deepEqual(await e.openFile(r05PathE), { result: true, path: r05PathE, markdown: r05SourceE });
+    await d.edit(r05MarkerD);
+    await e.edit(r05MarkerE);
+    const draftD = await d.recovery(r05MarkerD);
+    const draftE = await e.recovery(r05MarkerE);
+    assert.equal(draftD.path, r05PathD);
+    assert.equal(draftE.path, r05PathE);
+    const rowsD = JSON.parse(await d.invoke('list_recoveries'));
+    const rowsE = JSON.parse(await e.invoke('list_recoveries'));
+    assert.equal(rowsD.length, 1, JSON.stringify(rowsD));
+    assert.equal(rowsE.length, 1, JSON.stringify(rowsE));
+    assert.equal(rowsD[0].path, r05PathD);
+    assert.equal(rowsE[0].path, r05PathE);
+    assert.notEqual(rowsD[0].id, rowsE[0].id, 'D dan E harus memiliki session berbeda');
+
+    await killPid(pidD);
+    d.sessionId = '';
+    await d.stop();
+    await killPid(pidE);
+    e.sessionId = '';
+    await e.stop();
+    await expectPids(0, 'kedua pemilik stale sudah berhenti');
+    const initialSnapshots = await readSnapshotMap();
+    assert.equal(Object.keys(initialSnapshots).length, 2, JSON.stringify(Object.keys(initialSnapshots)));
+    assert.ok(Object.keys(sessionSnapshots(initialSnapshots, rowsD[0].id)).length === 1);
+    assert.ok(Object.keys(sessionSnapshots(initialSnapshots, rowsE[0].id)).length === 1);
+    r05Evidence.initialSnapshotFiles = Object.keys(initialSnapshots);
+
+    const f = await launch('F', 4454, 4455);
+    const pidF = (await expectPids(1, 'PID pemilih stale'))[0];
+    await waitForPicker(f, [r05PathD, r05PathE]);
+    await f.screenshot('r05-01-picker.png');
+    const rows = JSON.parse(await f.invoke('list_recoveries'));
+    assert.equal(rows.length, 2, JSON.stringify(rows));
+    assert.deepEqual(rows.map((row) => row.path).sort(), [r05PathD, r05PathE].sort());
+    const adopted = JSON.parse(await f.invoke('read_recovery'));
+    assert.ok(adopted.path === r05PathD || adopted.path === r05PathE, JSON.stringify(adopted));
+    // Pilih kandidat yang tidak diadopsi agar perpindahan lock benar-benar diuji.
+    const chosenPath = adopted.path === r05PathD ? r05PathE : r05PathD;
+    const unchosenPath = chosenPath === r05PathD ? r05PathE : r05PathD;
+    const chosenMarker = chosenPath === r05PathD ? r05MarkerD : r05MarkerE;
+    const unchosenMarker = chosenPath === r05PathD ? r05MarkerE : r05MarkerD;
+    const chosenRow = rows.find((row) => row.path === chosenPath);
+    const unchosenRow = rows.find((row) => row.path === unchosenPath);
+    assert.ok(chosenRow && unchosenRow, JSON.stringify(rows));
+    r05Evidence.sessionIds = rows.map((row) => row.id).sort();
+    r05Evidence.selectedPath = chosenPath;
+    r05Evidence.unselectedPath = unchosenPath;
+    await f.click(`#recovery-list button:nth-child(${rows.indexOf(chosenRow) + 1})`);
+    await confirmRestoreDialog({
+      label: 'dialog GTK setelah memilih salah satu stale recovery',
+      screenshotName: 'r05-02-restore-dialog.png',
+      windowReportName: 'r05-restore-x11-windows.txt'
+    });
+    const restored = await waitFor('hanya kandidat pilihan yang dipulihkan', async () => {
+      const state = await f.state();
+      return state.path === chosenPath && state.dirty && state.markdown.includes(chosenMarker) ? state : false;
+    }, 10000);
+    assert.equal(restored.markdown.includes(unchosenMarker), false, 'Marker kandidat lain tidak boleh masuk editor');
+    assert.equal(await fs.readFile(r05PathD, 'utf8'), r05SourceD);
+    assert.equal(await fs.readFile(r05PathE, 'utf8'), r05SourceE);
+
+    const afterSelection = await readSnapshotMap();
+    assert.deepEqual(sessionSnapshots(afterSelection, unchosenRow.id),
+      sessionSnapshots(initialSnapshots, unchosenRow.id), 'Snapshot kandidat lain harus identik');
+    assert.ok(Object.keys(sessionSnapshots(afterSelection, chosenRow.id)).length >= 1);
+    const remainingRows = JSON.parse(await f.invoke('list_recoveries'));
+    assert.equal(remainingRows.length, 2, JSON.stringify(remainingRows));
+    assert.deepEqual(remainingRows.map((row) => row.id).sort(), r05Evidence.sessionIds);
+    r05Evidence.unselectedSnapshotUnchanged = true;
+    r05Evidence.originalFilesUnchanged = true;
+    await f.screenshot('r05-03-selected-restored.png');
+
+    // Jadikan kedua kandidat stale lagi untuk skenario Nanti saja.
+    await killPid(pidF);
+    f.sessionId = '';
+    await f.stop();
+    await expectPids(0, 'proses pilihan pertama berhenti');
+    r05BeforeDefer = await readSnapshotMap();
+    const hasDraft = (id, candidatePath, marker) => Object.values(sessionSnapshots(r05BeforeDefer, id))
+      .some((raw) => {
+        const value = JSON.parse(raw);
+        return value.path === candidatePath && value.markdown.includes(marker);
+      });
+    assert.ok(hasDraft(chosenRow.id, chosenPath, chosenMarker), 'Kandidat terpilih harus tetap ada setelah kill');
+    assert.ok(hasDraft(unchosenRow.id, unchosenPath, unchosenMarker), 'Kandidat lain harus tetap ada setelah kill');
+    r05Evidence.snapshotFilesBeforeDefer = Object.keys(r05BeforeDefer);
+  });
+
+  await step('R05: Nanti saja tidak memulihkan atau menghapus snapshot', async () => {
+    assert.ok(r05BeforeDefer && Object.keys(r05BeforeDefer).length >= 2);
+    const g = await launch('G', 4456, 4457);
+    await expectPids(1, 'PID skenario Nanti saja');
+    await waitForPicker(g, [r05PathD, r05PathE], 'picker kedua sebelum Nanti saja');
+    const before = await g.state();
+    assert.equal(before.path, null, JSON.stringify(before));
+    assert.equal(before.dirty, false, JSON.stringify(before));
+    assert.doesNotMatch(before.markdown, /Draf stale [DE] yang dipilih/);
+    await g.screenshot('r05-04-picker-before-defer.png');
+
+    await g.click('#recovery-dialog form button');
+    await waitFor('picker tertutup setelah Nanti saja', async () => !(await g.pickerState()).open, 5000);
+    await delay(800); // Beri kesempatan bug lanjutan restore/clear untuk terlihat.
+    assert.deepEqual(visibleRestoreDialogs(), [], 'Nanti saja tidak boleh membuka konfirmasi GTK');
+    const after = await g.state();
+    assert.equal(after.path, before.path, JSON.stringify(after));
+    assert.equal(after.dirty, false, JSON.stringify(after));
+    assert.equal(after.markdown, before.markdown, 'Editor tidak boleh berubah setelah Nanti saja');
+    assert.deepEqual(visibleRestoreDialogs(), []);
+    const afterSnapshots = await readSnapshotMap();
+    assert.deepEqual(afterSnapshots, r05BeforeDefer, 'Semua file snapshot harus identik setelah Nanti saja');
+    const rowsAfter = JSON.parse(await g.invoke('list_recoveries'));
+    assert.equal(rowsAfter.length, 2, JSON.stringify(rowsAfter));
+    assert.deepEqual(rowsAfter.map((row) => row.id).sort(), r05Evidence.sessionIds);
+    assert.equal(await fs.readFile(r05PathD, 'utf8'), r05SourceD);
+    assert.equal(await fs.readFile(r05PathE, 'utf8'), r05SourceE);
+    r05Evidence.defer = {
+      editorUnchanged: true,
+      allSnapshotFilesIdentical: true,
+      candidatesRemaining: rowsAfter.length,
+      originalFilesUnchanged: true
+    };
+    await fs.writeFile(path.join(artifactDir, 'r05-evidence.json'), JSON.stringify(r05Evidence, null, 2) + '\n', 'utf8');
+    await g.screenshot('r05-05-deferred.png');
+    await g.deleteSession();
+    await g.stop();
   });
 } catch (error) {
   failure = error;
