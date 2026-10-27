@@ -1,5 +1,30 @@
 # Laporan status & handoff MarkRust
 
+## Update 27 Oktober 2026 — M2: R05 picker beberapa recovery
+
+- Commit `a306044`, CI `40431135910`: **6/6 kelompok native tunggal dan 5/5
+  kelompok multi-instance Linux/WebKitGTK lulus**. Hanya harness berubah; kode
+  produksi tidak diubah.
+- Dua aplikasi hidup bersamaan membuat snapshot pada session berbeda, kemudian
+  keduanya di-`SIGKILL`. Proses berikutnya menampilkan picker HTML dengan dua
+  path. Harness memilih kandidat yang tidak otomatis diadopsi sehingga
+  `select_recovery` dan perpindahan lock nyata ikut diuji.
+- Setelah dialog GTK dijawab Yes, hanya marker/path kandidat pilihan yang masuk
+  editor dengan dirty aktif. Marker kandidat lain tidak masuk, file asli kedua
+  dokumen tidak berubah, dan seluruh file snapshot kandidat yang tidak dipilih
+  tetap identik.
+- Kedua kandidat dibuat stale lagi, lalu **Nanti saja** dipilih melalui tombol
+  WebDriver pada picker kedua. Editor tetap pada dokumen awal, tidak ada dialog
+  GTK restore, dua kandidat tetap terdaftar, dan seluruh file snapshot sebelum/
+  sesudah penundaan identik.
+- `r05-evidence.json` serta screenshot picker/restore tersimpan pada artefak
+  `native-webview-linux` ID `12702296185`; isi visual/JSON belum diinspeksi dari
+  sandbox. Kelulusan berasal dari assertion CI.
+- Node 172 tes, Chromium 4 kelompok, dan build/test Rust tiga OS juga lulus;
+  bundel rilis skipped. **R05 manual tetap BELUM DIUJI**; R01–R04 manual dan
+  M1/M2 belum ditutup. R06, checklist tiga OS, runtime Windows/macOS native,
+  network inspector native, dan installer tetap terbuka.
+
 ## Update 27 Oktober 2026 — M2: R03 draf kosong native
 
 - Commit `5cf01fb`, CI `40429916613`: **6/6 kelompok native tunggal dan 3/3
@@ -202,10 +227,10 @@ memiliki tes otomatis tersendiri; masukkan ke uji F07.
 - Lokal pada update 26 Oktober 2026 (tahap 1B): `npm test` → **172 tests, 172 pass, 0 fail**.
 - Chromium 153 lokal: `npm run test:browser` → **4/4 kelompok lulus**, tanpa
   console/page error; cakupan dan batasnya dijelaskan pada update di atas.
-- CI `40429916613`, commit `5cf01fb`: **6/6 kelompok WebView Tauri native
-  Linux/WebKitGTK dan 3/3 langkah multi-instance lulus**, termasuk R01, R02,
-  R03, dialog restore, simpan hasil pemulihan, serta dua proses A/B. Batas bukti
-  manual, angka pengukuran, dan cakupan OS dijelaskan pada update M2 teratas.
+- CI `40431135910`, commit `a306044`: **6/6 kelompok WebView Tauri native
+  Linux/WebKitGTK dan 5/5 kelompok multi-instance lulus**, termasuk R01–R05,
+  dialog restore, simpan hasil pemulihan, dua proses A/B, serta picker/Nanti
+  saja. Batas bukti manual, artefak, dan cakupan OS dijelaskan pada update M2.
 - Tidak ada toolchain Rust lokal; Rust diverifikasi lewat GitHub Actions.
 - CI M1c `40073225635`, commit `0ecfd7a`: Node + build/test Rust Linux,
   Windows, macOS lulus. Bundel rilis tidak berjalan pada push biasa.
@@ -220,8 +245,8 @@ memiliki tes otomatis tersendiri; masukkan ke uji F07.
 
 Jalankan checklist tiga OS. Audit khusus registrasi close listener, permission,
 close berulang, Cmd+Q, error IPC, dan dialog yang dibatalkan. Bukti otomatis
-Linux/WebKitGTK kini ada pada CI `40429916613`, termasuk dialog restore penuh,
-pengetikan kontinu R02, draf kosong R03, dan dua proses A/B, tetapi checklist
+Linux/WebKitGTK kini ada pada CI `40431135910`, termasuk dialog restore penuh,
+R02/R03, dua proses A/B, dan picker beberapa recovery R05, tetapi checklist
 manual lintas OS dan kasus lain belum dicakup; belum ada runtime native
 Windows/macOS. Jangan menandai M1/M2 selesai dulu.
 

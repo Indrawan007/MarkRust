@@ -150,12 +150,18 @@ dibaca ulang melalui Rust sebelum recovery dibersihkan.
 membuka dokumen A/B, menyimpan A tanpa menghapus snapshot B, mematikan B,
 memulai proses pengganti, lalu memulihkan B melalui dialog GTK sementara A
 tetap berjalan. Isi editor, PID, file host, dan recovery kedua sesi diperiksa.
-Seluruh harness di atas lulus pada CI `40429916613` untuk commit `5cf01fb`.
+
+Harness multi-instance juga menjalankan R05 dengan dua stale session: picker
+menampilkan dua path, kandidat yang tidak diadopsi dipilih melalui tombol nyata
+dan dikonfirmasi lewat GTK, serta snapshot kandidat lain diverifikasi identik.
+Pada proses berikutnya, tombol Nanti saja dipilih dan seluruh file snapshot
+sebelum/sesudah harus tetap identik. Ringkasan disimpan di `r05-evidence.json`.
+Seluruh harness di atas lulus pada CI `40431135910` untuk commit `a306044`.
 
 Pemeriksaan ini berjalan pada job Rust/Linux CI (`ubuntu-24.04`) sebagai bagian
-M2. Interaksi restore dan dua proses dilakukan otomatis, bukan pengujian manual
-lintas OS. Checklist manual dua proses, installer, dan runtime Windows/macOS
-tetap mengikuti `DESKTOP-TEST-CHECKLIST.md`.
+M2. Interaksi restore/picker dan dua proses dilakukan otomatis, bukan pengujian
+manual lintas OS. Checklist manual lintas OS, installer, dan runtime
+Windows/macOS tetap mengikuti `DESKTOP-TEST-CHECKLIST.md`.
 
 ## Keputusan UI
 

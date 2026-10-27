@@ -21,7 +21,7 @@ Gunakan dokumen sintetis dan folder uji, bukan berkas kerja satu-satunya.
 
 ## Bukti otomatis native Linux (tidak mengubah tabel manual)
 
-Commit `5cf01fb`, [CI `40429916613`](https://github.com/Indrawan007/MarkRust/actions/runs/40429916613),
+Commit `a306044`, [CI `40431135910`](https://github.com/Indrawan007/MarkRust/actions/runs/40431135910),
 27 Oktober 2026: langkah **Validasi WebView Tauri native (Linux/Xvfb)** dan
 **Validasi dua proses Tauri native (Linux/Xvfb)** PASS pada runner
 `ubuntu-24.04`, binary Tauri + WebKitGTK melalui `tauri-driver` 2.1.0 dan
@@ -37,19 +37,22 @@ versi manual yang sudah diverifikasi.
 | A05 | Dua proses/PID dengan dokumen A/B → simpan A tanpa menghapus snapshot B → kill/restart B → restore B melalui dialog sementara editor dan file A tetap utuh | PASS; screenshot `multi-01-two-instances.png`, `multi-03-b-recovery-dialog.png`, `multi-04-b-restored-a-intact.png` |
 | A06 | R02: token user-source tiap 40 ms selama >3,6 detik dengan jeda <700 ms → snapshot saat mengetik → kill/restart → restore sama dengan snapshot → file belum berubah → simpan | PASS; `r02-measurement.json`, screenshot `07b-r02-recovery-dialog.png`, `08-r02-restored.png`, `09-r02-saved.png` |
 | A07 | R03: hapus seluruh isi → snapshot valid dengan Markdown kosong → kill/restart → dialog restore menghasilkan editor kosong tanpa marker lama → file lama utuh sebelum simpan → simpan kosong dan recovery bersih | PASS; screenshot `10b-r03-recovery-dialog.png`, `11-r03-restored-empty.png`, `12-r03-empty-saved.png` |
+| A08 | R05: dua stale session → picker dua path → pilih kandidat yang tidak diadopsi → `select_recovery` + GTK Yes → hanya pilihan masuk editor; kandidat lain dan file asli tetap utuh | PASS; `r05-evidence.json`, screenshot `r05-01-picker.png`, `r05-02-restore-dialog.png`, `r05-03-selected-restored.png` |
+| A09 | R05: kedua kandidat stale lagi → picker kedua → klik Nanti saja → editor tidak berubah, tidak ada GTK restore, seluruh file snapshot identik dan dua kandidat tetap terdaftar | PASS; `r05-evidence.json`, screenshot `r05-04-picker-before-defer.png`, `r05-05-deferred.png` |
 
 Artefak run: `native-webview-linux` (screenshot WebView/X11 + log driver,
-retensi 7 hari). Pada A03/A05 hanya pemilihan path dialog Buka yang distub;
-perintah `read_document`, `write_document`, recovery, serializer, dialog
-restore, dan state UI nyata. Screenshot dan angka dalam `r02-measurement.json`
-tidak diinspeksi di sandbox karena host unduhan artefak eksternal tidak dapat
-diakses; keberhasilan A01–A07 berasal dari assertion harness dan status CI.
+retensi 7 hari). Pada skenario yang membuka dokumen, hanya pemilihan path
+pada dialog Buka yang distub; perintah `read_document`, `write_document`,
+recovery/`select_recovery`, serializer, picker/dialog restore, dan state UI
+nyata. Screenshot serta isi `r02-measurement.json` dan
+`r05-evidence.json` tidak diinspeksi di sandbox karena host unduhan artefak
+eksternal tidak dapat diakses; keberhasilan A01–A09 berasal dari assertion CI.
 Selisih token R02 adalah pengukuran sampel, bukan klaim nol kehilangan.
 
-Bukti ini **tidak** menandai F01/F02/F09/R01/R02/R03/R04 atau kasus manual lain
-sebagai PASS. R01/R02/R03/R04 otomatis hanya lulus pada Linux/WebKitGTK;
-interaksi manual lintas OS, window controls, network inspector, installer,
-serta runtime native Windows/macOS masih harus diuji terpisah.
+Bukti ini **tidak** menandai F01/F02/F09/R01/R02/R03/R04/R05 atau kasus manual
+lain sebagai PASS. R01–R05 otomatis hanya lulus pada Linux/WebKitGTK; interaksi
+manual lintas OS, window controls, network inspector, installer, serta runtime
+native Windows/macOS masih harus diuji terpisah.
 
 ## Matriks kasus wajib (ulangi pada tiap OS)
 

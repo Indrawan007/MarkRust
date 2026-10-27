@@ -86,6 +86,13 @@ simpan, dan hasil kosong berhasil ditulis/dibaca ulang melalui Rust sebelum
 recovery dibersihkan. Ini bukti otomatis Linux saja; R03 manual, checklist tiga
 OS, dan gerbang M1/M2 tetap terbuka.
 
+Lanjutan pada commit `a306044`, CI `40431135910`: R05 membuat dua stale session
+dan membuktikan picker memulihkan hanya kandidat pilihan melalui
+`select_recovery` serta dialog GTK. Snapshot kandidat lain tetap identik. Pada
+skenario kedua, Nanti saja tidak mengubah editor dan seluruh file snapshot
+tetap identik; dua kandidat masih terdaftar. Bukti ini otomatis Linux saja;
+R05 manual, R06, checklist tiga OS, dan gerbang M1/M2 tetap terbuka.
+
 ## M3 — Privasi gambar ditegakkan lintas lapisan (prioritas tinggi)
 
 **Tujuan:** hilangkan izin gambar jaringan langsung dari CSP tanpa membuka
