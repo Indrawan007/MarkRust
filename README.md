@@ -171,8 +171,15 @@ versi rusak. Semua snapshot awal, termasuk yang rusak, harus tetap identik setel
 restore dan penulisan snapshot berikutnya; file asli tidak berubah. Pada skenario
 kedua seluruh versi dirusak: indikator kegagalan harus terlihat, tidak ada kandidat
 atau dialog restore, dan semua file corrupt tetap identik. Ringkasan disimpan di
-`r07-evidence.json`. Seluruh harness di atas lulus pada CI `40432859739` untuk
-commit `a4293ed`: 8/8 kelompok native tunggal dan 6/6 kelompok multi-instance.
+`r07-evidence.json`.
+
+R08 memakai dua sesi dan sparse file `.tmp` untuk mengisi ukuran logis recovery
+tepat 256 MiB tanpa menulis ratusan MiB ke disk fisik. Write baru pada A harus
+ditolak dengan indikator error, sementara editor/path/dirty, semua snapshot A/B,
+dan file asli tetap utuh. Setelah filler dilepas, flush yang sama harus berhasil,
+error hilang, dirty tetap aktif, dan snapshot B tetap identik. Ringkasan disimpan
+di `r08-evidence.json`. Seluruh harness di atas lulus pada CI `40434261611`
+untuk commit `b689cb0`: 8/8 kelompok native tunggal dan 7/7 multi-instance.
 
 Pemeriksaan ini berjalan pada job Rust/Linux CI (`ubuntu-24.04`) sebagai bagian
 M2. Interaksi restore/picker dan dua proses dilakukan otomatis, bukan pengujian

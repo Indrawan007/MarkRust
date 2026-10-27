@@ -1,5 +1,29 @@
 # Laporan status & handoff MarkRust
 
+## Update 27 Oktober 2026 — M2: R08 kuota total recovery
+
+- Commit `b689cb0`, CI `40434261611`: **8/8 kelompok native tunggal dan 7/7
+  kelompok multi-instance Linux/WebKitGTK lulus**. Hanya harness berubah; kode
+  produksi tidak diubah.
+- Dua proses membuat snapshot A/B pada session berbeda, lalu B dimatikan. Sparse
+  file `quota-fill.tmp` mengisi ukuran logis recovery tepat sampai 268.435.456
+  byte menurut penghitungan file Rust, tanpa menulis 256 MiB blok fisik.
+- Edit baru A memicu `write_recovery` nyata yang ditolak pada batas tersebut.
+  Indikator dan pesan kuota terlihat; editor/path/dirty tetap, snapshot lama tidak
+  memuat edit yang ditolak, dan tidak ada file recovery baru atau sisa. Semua
+  snapshot A/B serta kedua file asli tetap identik.
+- Setelah filler dilepas, `flushDraft()` berhasil menulis satu snapshot baru A,
+  indikator/title error dibersihkan, dan dirty tetap aktif. Snapshot B dan kedua
+  file asli tetap identik; backup berhasil tidak dianggap sebagai save.
+- `r08-evidence.json` serta screenshot penolakan/pemulihan write tersimpan pada
+  artefak `native-webview-linux` ID `12703282961`; isi visual/JSON belum
+  diinspeksi dari sandbox karena host unduhan eksternal tidak dapat diakses.
+  Kelulusan berasal dari assertion CI.
+- Node 172 tes, Chromium 4 kelompok, dan build/test Rust tiga OS juga lulus;
+  bundel rilis skipped. **R08 manual tetap BELUM DIUJI**; R01–R07 manual dan
+  M1/M2 belum ditutup. R09, checklist tiga OS, runtime Windows/macOS native,
+  network inspector native, dan installer tetap terbuka.
+
 ## Update 27 Oktober 2026 — M2: R07 snapshot rusak dan fallback
 
 - Commit `a4293ed`, CI `40432859739`: **8/8 kelompok native tunggal dan 6/6

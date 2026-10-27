@@ -21,7 +21,7 @@ Gunakan dokumen sintetis dan folder uji, bukan berkas kerja satu-satunya.
 
 ## Bukti otomatis native Linux (tidak mengubah tabel manual)
 
-Commit `a4293ed`, [CI `40432859739`](https://github.com/Indrawan007/MarkRust/actions/runs/40432859739),
+Commit `b689cb0`, [CI `40434261611`](https://github.com/Indrawan007/MarkRust/actions/runs/40434261611),
 27 Oktober 2026: langkah **Validasi WebView Tauri native (Linux/Xvfb)** dan
 **Validasi dua proses Tauri native (Linux/Xvfb)** PASS pada runner
 `ubuntu-24.04`, binary Tauri + WebKitGTK melalui `tauri-driver` 2.1.0 dan
@@ -42,19 +42,20 @@ versi manual yang sudah diverifikasi.
 | A10 | R06: tiga stale session A/B/C → dua penantang mengadopsi C/B dan sama-sama mengklik A → tepat satu lock + dialog GTK; yang kalah error tanpa mengubah editor/path/dirty; pemenang restore A; snapshot awal dan file asli utuh | PASS; `r06-evidence.json`, screenshot `r06-01-first-picker.png` sampai `r06-05-loser.png` |
 | A11 | R07: dua versi → kill → JSON terbaru dirusak → restart → versi sebelumnya dibaca/dipulihkan melalui GTK; snapshot awal tetap identik setelah restore dan write berikutnya; file asli utuh | PASS; `r07-evidence.json`, screenshot `13-r07-fallback-restart.png`, `13b-r07-fallback-dialog.png`, `14-r07-fallback-restored.png` |
 | A12 | R07: semua versi dirusak → restart → indikator error terlihat, kandidat kosong, tidak ada picker/dialog, path/dirty aman; seluruh file corrupt dan file asli tetap identik | PASS; `r07-evidence.json`, screenshot `15-r07-all-corrupt.png` |
+| A13 | R08: dua sesi A/B + sparse filler tepat 256 MiB → write A ditolak dengan error, editor/dirty dan seluruh snapshot/file asli tetap; filler dilepas → flush berhasil, error hilang, dirty tetap, B identik | PASS; `r08-evidence.json`, screenshot `r08-01-quota-rejected.png`, `r08-02-write-resumed.png` |
 
 Artefak run: `native-webview-linux` (screenshot WebView/X11 + log driver,
 retensi 7 hari). Pada skenario yang membuka dokumen, hanya pemilihan path
 pada dialog Buka yang distub; perintah `read_document`, `write_document`,
 recovery/`select_recovery`, serializer, picker/dialog restore, dan state UI
 nyata. Screenshot serta isi `r02-measurement.json`, `r05-evidence.json`,
-`r06-evidence.json`, dan `r07-evidence.json` tidak diinspeksi di sandbox karena
-host unduhan artefak eksternal tidak dapat diakses; keberhasilan A01–A12 berasal
-dari assertion CI. Selisih token R02 adalah pengukuran sampel, bukan klaim nol
-kehilangan.
+`r06-evidence.json`, `r07-evidence.json`, dan `r08-evidence.json` tidak
+diinspeksi di sandbox karena host unduhan artefak eksternal tidak dapat diakses;
+keberhasilan A01–A13 berasal dari assertion CI. Selisih token R02 adalah
+pengukuran sampel, bukan klaim nol kehilangan.
 
-Bukti ini **tidak** menandai F01/F02/F09/R01/R02/R03/R04/R05/R06/R07 atau kasus
-manual lain sebagai PASS. R01–R07 otomatis hanya lulus pada Linux/WebKitGTK; interaksi
+Bukti ini **tidak** menandai F01/F02/F09/R01/R02/R03/R04/R05/R06/R07/R08 atau kasus
+manual lain sebagai PASS. R01–R08 otomatis hanya lulus pada Linux/WebKitGTK; interaksi
 manual lintas OS, window controls, network inspector, installer, serta runtime
 native Windows/macOS masih harus diuji terpisah.
 

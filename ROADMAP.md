@@ -109,6 +109,13 @@ dirusak, aplikasi menampilkan error tanpa kandidat/dialog restore dan tanpa
 menghapus file corrupt. Bukti ini otomatis Linux saja; R07 manual, R08–R09,
 checklist tiga OS, dan gerbang M1/M2 tetap terbuka.
 
+Lanjutan pada commit `b689cb0`, CI `40434261611`: R08 memakai sparse file untuk
+mengisi ukuran logis recovery tepat 256 MiB. Snapshot baru A ditolak dengan
+error terlihat, editor/path/dirty tetap, dan seluruh snapshot A/B serta file asli
+tetap identik. Setelah ruang dibebaskan, flush berhasil, error hilang, dirty
+tetap aktif, dan sesi B tidak tersentuh. Bukti ini otomatis Linux saja; R08
+manual, R09, checklist tiga OS, dan gerbang M1/M2 tetap terbuka.
+
 ## M3 — Privasi gambar ditegakkan lintas lapisan (prioritas tinggi)
 
 **Tujuan:** hilangkan izin gambar jaringan langsung dari CSP tanpa membuka
