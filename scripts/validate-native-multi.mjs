@@ -323,6 +323,27 @@ async function readSnapshotMap() {
   return Object.fromEntries(rows);
 }
 
+async function fileTreeUsage(dir) {
+  const entries = await fs.readdir(dir, { withFileTypes: true }).catch((error) => {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  });
+  let total = 0;
+  for (const entry of entries) {
+    const entryPath = path.join(dir, entry.name);
+    const meta = await fs.lstat(entryPath);
+    if (meta.isDirectory()) total += await fileTreeUsage(entryPath);
+    else if (meta.isFile()) total += meta.size;
+  }
+  return total;
+}
+
+async function recoveryUsage() {
+  const base = path.join(sharedData, 'com.markrust.app');
+  return (await fileTreeUsage(path.join(base, 'recovery-v1')))
+    + (await fileTreeUsage(path.join(base, 'recovery-v2')));
+}
+
 function sessionSnapshots(map, id) {
   return Object.fromEntries(Object.entries(map).filter(([key]) => key.startsWith(`${id}/`)));
 }
@@ -790,6 +811,175 @@ try {
     await loser.screenshot('r06-05-loser.png');
     await first.stop();
     await second.stop();
+  });
+
+  await step('R08: kuota 256 MiB menolak snapshot tanpa menghapus sesi lain', async () => {
+    await expectPids(0, 'semua proses R06 sudah berhenti');
+    sharedData = path.join(tempRoot, 'shared-data-r08');
+    await fs.mkdir(sharedData, { recursive: true });
+    const pathA = path.join(tempRoot, 'kuota A Ω.md');
+    const pathB = path.join(tempRoot, 'kuota B Ω.md');
+    const sourceA = '# Kuota A\n\nIsi asli A.\n';
+    const sourceB = '# Kuota B\n\nIsi asli B.\n';
+    const markerA = 'Snapshot awal kuota A Ω.';
+    const markerB = 'Snapshot sesi lain kuota B Ω.';
+    const rejectedMarker = 'Edit yang harus ditolak saat kuota penuh Ω.';
+    await fs.writeFile(pathA, sourceA, 'utf8');
+    await fs.writeFile(pathB, sourceB, 'utf8');
+
+    const quotaA = await launch('R08-A', 4468, 4469);
+    const pidA = (await expectPids(1, 'PID pemilik kuota A'))[0];
+    assert.deepEqual(await quotaA.openFile(pathA), { result: true, path: pathA, markdown: sourceA });
+    await quotaA.edit(markerA);
+    const draftA = await quotaA.recovery(markerA);
+    assert.equal(draftA.path, pathA);
+
+    const quotaB = await launch('R08-B', 4470, 4471);
+    const two = await expectPids(2, 'PID kuota A dan B');
+    const pidB = two.find((pid) => pid !== pidA);
+    assert.ok(pidB, JSON.stringify({ two, pidA }));
+    assert.deepEqual(await quotaB.openFile(pathB), { result: true, path: pathB, markdown: sourceB });
+    await quotaB.edit(markerB);
+    const draftB = await quotaB.recovery(markerB);
+    assert.equal(draftB.path, pathB);
+    await killPid(pidB);
+    quotaB.sessionId = '';
+    await quotaB.stop();
+    assert.deepEqual(await expectPids(1, 'hanya kuota A hidup'), [pidA]);
+
+    const beforeSnapshots = await readSnapshotMap();
+    assert.equal(Object.keys(beforeSnapshots).length, 2, JSON.stringify(Object.keys(beforeSnapshots)));
+    const entriesForPath = (candidatePath) => Object.entries(beforeSnapshots)
+      .filter(([, raw]) => JSON.parse(raw).path === candidatePath);
+    const ownEntries = entriesForPath(pathA);
+    const otherEntries = entriesForPath(pathB);
+    assert.equal(ownEntries.length, 1, JSON.stringify(Object.keys(beforeSnapshots)));
+    assert.equal(otherEntries.length, 1, JSON.stringify(Object.keys(beforeSnapshots)));
+    const ownSession = ownEntries[0][0].split('/')[0];
+    const otherSession = otherEntries[0][0].split('/')[0];
+    assert.notEqual(ownSession, otherSession);
+    assert.equal(ownEntries[0][1], JSON.stringify(draftA));
+    assert.equal(otherEntries[0][1], JSON.stringify(draftB));
+
+    const limit = 256 * 1024 * 1024;
+    const usageBeforeFilling = await recoveryUsage();
+    const fillSize = limit - usageBeforeFilling;
+    assert.ok(fillSize > 0, JSON.stringify({ usageBeforeFilling, limit }));
+    const recoveryRoot = path.join(sharedData, 'com.markrust.app', 'recovery-v2');
+    const fillerPath = path.join(recoveryRoot, 'quota-fill.tmp');
+    // truncate() membuat sparse file: ukuran logis dihitung oleh kuota Rust,
+    // tetapi CI tidak perlu menulis ratusan MiB ke blok disk fisik.
+    const filler = await fs.open(fillerPath, 'wx', 0o600);
+    try {
+      await filler.truncate(fillSize);
+      await filler.sync();
+    } finally {
+      await filler.close();
+    }
+    const fillerStat = await fs.stat(fillerPath);
+    assert.equal(fillerStat.size, fillSize);
+    const usageAtLimit = await recoveryUsage();
+    assert.equal(usageAtLimit, limit, 'Direktori recovery harus tepat pada batas 256 MiB');
+
+    const beforeEdit = await quotaA.recoveryState();
+    assert.equal(beforeEdit.errorVisible, false, JSON.stringify(beforeEdit));
+    assert.equal(beforeEdit.dirty, true, JSON.stringify(beforeEdit));
+    await quotaA.edit(rejectedMarker);
+    const expectedAfterEdit = await quotaA.recoveryState();
+    assert.equal(expectedAfterEdit.path, pathA, JSON.stringify(expectedAfterEdit));
+    assert.equal(expectedAfterEdit.dirty, true, JSON.stringify(expectedAfterEdit));
+    assert.match(expectedAfterEdit.markdown, /Edit yang harus ditolak saat kuota penuh/);
+
+    const failedState = await waitFor('error kuota R08 terlihat tanpa menghilangkan edit', async () => {
+      const state = await quotaA.recoveryState();
+      return state.errorVisible && state.dirty && state.markdown === expectedAfterEdit.markdown ? state : false;
+    }, 10000);
+    assert.equal(failedState.path, pathA, JSON.stringify(failedState));
+    assert.equal(failedState.pickerOpen, false, JSON.stringify(failedState));
+    const errorInfo = await quotaA.execute(`const element = document.getElementById('sb-draft-error'); return {
+      hidden: element.hidden, title: element.title, text: element.textContent.trim()
+    };`);
+    assert.equal(errorInfo.hidden, false, JSON.stringify(errorInfo));
+    assert.match(errorInfo.title, /Batas total recovery tercapai/);
+
+    const persistedAfterFailure = JSON.parse(await quotaA.invoke('read_recovery'));
+    assert.equal(persistedAfterFailure.markdown, draftA.markdown,
+      'Snapshot lama tidak boleh berisi edit yang ditolak');
+    assert.doesNotMatch(persistedAfterFailure.markdown, /Edit yang harus ditolak/);
+    const afterRejected = await readSnapshotMap();
+    assert.deepEqual(afterRejected, beforeSnapshots,
+      'Penolakan kuota tidak boleh menambah, mengubah, atau menghapus snapshot');
+    assert.deepEqual(sessionSnapshots(afterRejected, otherSession), sessionSnapshots(beforeSnapshots, otherSession),
+      'Snapshot sesi lain harus identik');
+    assert.equal((await fs.stat(fillerPath)).size, fillSize);
+    assert.equal(await recoveryUsage(), limit, 'Kegagalan tidak boleh meninggalkan file baru di luar hitungan');
+    assert.equal(await fs.readFile(pathA, 'utf8'), sourceA);
+    assert.equal(await fs.readFile(pathB, 'utf8'), sourceB);
+    await quotaA.screenshot('r08-01-quota-rejected.png');
+
+    // Setelah ruang tersedia, flush yang sama harus berhasil tanpa save ke file
+    // asli dan tanpa menghapus snapshot sesi B.
+    await fs.unlink(fillerPath);
+    assert.equal(await recoveryUsage(), usageBeforeFilling,
+      'Tidak boleh ada file sisa dari penulisan yang ditolak');
+    const flushed = await quotaA.executeAsync(`
+      const done = arguments[arguments.length - 1];
+      window.MarkRust.flushDraft().then(
+        value => done({ value }), error => done({ error: String(error) })
+      );
+    `);
+    if (flushed?.error) throw new Error(`R08 flush setelah ruang tersedia: ${flushed.error}`);
+    assert.equal(flushed?.value, true, JSON.stringify(flushed));
+    const recoveredDraft = await quotaA.recovery(rejectedMarker);
+    assert.equal(recoveredDraft.path, pathA);
+    assert.equal(recoveredDraft.markdown, expectedAfterEdit.markdown);
+    const afterFlushState = await quotaA.recoveryState();
+    assert.equal(afterFlushState.errorVisible, false, JSON.stringify(afterFlushState));
+    assert.equal(afterFlushState.dirty, true, 'Backup berhasil tidak boleh membersihkan dirty');
+    assert.equal(afterFlushState.path, pathA, JSON.stringify(afterFlushState));
+    assert.equal(afterFlushState.markdown, expectedAfterEdit.markdown);
+    const clearedError = await quotaA.execute(`const element = document.getElementById('sb-draft-error');
+      return { hidden: element.hidden, title: element.title };`);
+    assert.deepEqual(clearedError, { hidden: true, title: '' });
+
+    const afterFlush = await readSnapshotMap();
+    for (const [key, raw] of Object.entries(beforeSnapshots)) {
+      assert.equal(afterFlush[key], raw, `Snapshot awal R08 berubah/hilang: ${key}`);
+    }
+    const additions = Object.keys(afterFlush).filter((key) => !(key in beforeSnapshots));
+    assert.equal(additions.length, 1, JSON.stringify(additions));
+    assert.ok(additions[0].startsWith(`${ownSession}/`), JSON.stringify({ additions, ownSession }));
+    assert.equal(JSON.parse(afterFlush[additions[0]]).markdown, expectedAfterEdit.markdown);
+    assert.deepEqual(sessionSnapshots(afterFlush, otherSession), sessionSnapshots(beforeSnapshots, otherSession),
+      'Write setelah kuota tersedia tidak boleh menyentuh sesi B');
+    assert.equal(await fs.readFile(pathA, 'utf8'), sourceA);
+    assert.equal(await fs.readFile(pathB, 'utf8'), sourceB);
+
+    const evidence = {
+      limitBytes: limit,
+      usageBeforeFilling,
+      sparseFillBytes: fillSize,
+      usageAtLimit,
+      rejection: {
+        errorVisible: true,
+        dirtyPreserved: true,
+        rejectedEditNotPersisted: true,
+        allSnapshotFilesIdentical: true,
+        otherSessionSnapshotsIdentical: true,
+        originalFilesUnchanged: true
+      },
+      afterSpaceFreed: {
+        flushSucceeded: true,
+        errorCleared: true,
+        dirtyStillPresent: true,
+        additionalSnapshotFiles: additions,
+        otherSessionSnapshotsIdentical: true,
+        originalFilesUnchanged: true
+      }
+    };
+    await fs.writeFile(path.join(artifactDir, 'r08-evidence.json'), JSON.stringify(evidence, null, 2) + '\n', 'utf8');
+    await quotaA.screenshot('r08-02-write-resumed.png');
+    await quotaA.stop();
   });
 } catch (error) {
   failure = error;
