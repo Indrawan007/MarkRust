@@ -1,5 +1,29 @@
 # Laporan status & handoff MarkRust
 
+## Update 27 Oktober 2026 — M2: R09 migrasi v1/localStorage
+
+- Commit `3d40737`, CI `40435271501`: **8/8 kelompok native tunggal dan 9/9
+  kelompok multi-instance Linux/WebKitGTK lulus**. Hanya harness berubah; kode
+  produksi tidak diubah.
+- Fixture `recovery-v1` ditawarkan bersama satu draf v2 stale. Kandidat `legacy`
+  dipilih melalui picker nyata dan dipulihkan lewat GTK. Snapshot pasca-restore
+  tetap berada di v1 tanpa duplikasi ke v2; save membersihkan hanya legacy.
+  Snapshot dan file asli draf v2 lain tetap identik, serta kandidatnya masih
+  terdaftar setelah save.
+- Pada jalur localStorage, proses B tetap live dan terkunci sementara A menerima
+  draf localStorage lama lalu me-reload WebView. Dialog GTK memulihkan isi/path/
+  dirty A. Hanya satu kandidat disk A muncul setelah write; save membersihkan
+  disk dan localStorage milik A, sedangkan editor/snapshot/file B tetap utuh.
+- `r09-evidence.json` serta tujuh screenshot picker/dialog/hasil migrasi tersimpan
+  pada artefak `native-webview-linux` ID `12704016446`; isi visual/JSON belum
+  diinspeksi dari sandbox karena host unduhan eksternal tidak dapat diakses.
+  Kelulusan berasal dari assertion CI.
+- Node 172 tes, Chromium 4 kelompok, dan build/test Rust tiga OS juga lulus;
+  bundel rilis skipped. Cakupan otomatis **R01–R09 pada Linux/WebKitGTK lengkap**,
+  tetapi **R09 dan R01–R08 manual tetap BELUM DIUJI** serta M1/M2 belum ditutup.
+  Checklist tiga OS, runtime Windows/macOS native, network inspector native, dan
+  installer tetap terbuka.
+
 ## Update 27 Oktober 2026 — M2: R08 kuota total recovery
 
 - Commit `b689cb0`, CI `40434261611`: **8/8 kelompok native tunggal dan 7/7

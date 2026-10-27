@@ -178,8 +178,16 @@ tepat 256 MiB tanpa menulis ratusan MiB ke disk fisik. Write baru pada A harus
 ditolak dengan indikator error, sementara editor/path/dirty, semua snapshot A/B,
 dan file asli tetap utuh. Setelah filler dilepas, flush yang sama harus berhasil,
 error hilang, dirty tetap aktif, dan snapshot B tetap identik. Ringkasan disimpan
-di `r08-evidence.json`. Seluruh harness di atas lulus pada CI `40434261611`
-untuk commit `b689cb0`: 8/8 kelompok native tunggal dan 7/7 multi-instance.
+di `r08-evidence.json`.
+
+R09 menawarkan fixture `recovery-v1` bersama draf v2, memilih `legacy` melalui
+picker dan GTK, lalu membuktikan write pasca-restore tetap di v1 dan save hanya
+membersihkan legacy; snapshot v2 lain tetap identik. Draf localStorage lama juga
+diseed sebelum reload WebView saat sesi lain live dan terkunci. Restore menghasilkan
+satu kandidat disk, dan save membersihkan hanya disk/localStorage miliknya tanpa
+mengubah editor, snapshot, atau file sesi lain. Ringkasan disimpan di
+`r09-evidence.json`. Seluruh harness di atas lulus pada CI `40435271501` untuk
+commit `3d40737`: 8/8 kelompok native tunggal dan 9/9 multi-instance.
 
 Pemeriksaan ini berjalan pada job Rust/Linux CI (`ubuntu-24.04`) sebagai bagian
 M2. Interaksi restore/picker dan dua proses dilakukan otomatis, bukan pengujian

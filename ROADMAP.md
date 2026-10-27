@@ -116,6 +116,14 @@ tetap identik. Setelah ruang dibebaskan, flush berhasil, error hilang, dirty
 tetap aktif, dan sesi B tidak tersentuh. Bukti ini otomatis Linux saja; R08
 manual, R09, checklist tiga OS, dan gerbang M1/M2 tetap terbuka.
 
+Lanjutan pada commit `3d40737`, CI `40435271501`: R09 memulihkan kandidat
+`recovery-v1` dari picker yang juga memuat draf v2. Write tetap di v1 dan save
+hanya membersihkan legacy; draf v2 lain tetap identik. Draf localStorage lama
+juga dipulihkan setelah reload saat sesi lain live/terkunci, lalu save hanya
+membersihkan disk/localStorage miliknya tanpa mengubah sesi lain. Ini melengkapi
+cakupan otomatis R01–R09 pada Linux saja; seluruh baris manual, checklist tiga OS,
+dan gerbang M1/M2 tetap terbuka.
+
 ## M3 — Privasi gambar ditegakkan lintas lapisan (prioritas tinggi)
 
 **Tujuan:** hilangkan izin gambar jaringan langsung dari CSP tanpa membuka
